@@ -5,23 +5,224 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --primary: #d70000;
 }
 
+/* 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
 }
-
+*/
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+html.dark {
+  color: rgba(255, 255, 255, var(--tw-text-opacity));
+  --tw-bg-opacity: 1;
+  --tw-text-opacity: 1;
+  background-color: rgba(26, 26, 26, var(--tw-bg-opacity));
+}
+
+.NavTag {
+  position: relative;
+  font-weight: 500;
+  font-size: 0.9rem;
+  width: max-content;
+  text-decoration: none;
+  user-select: none;
+}
+
+.NavTag::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  background-color: var(--primary);
+  visibility: hidden;
+  transition: 0.2s ease-in-out;
+}
+
+.NavTag:hover::before,
+.NavTag.active:before {
+  width: 100%;
+  visibility: visible;
+}
+
+.navbar {
+  transition: ease-in-out 3ms;
+}
+
+.hero {
+  height: 80vh;
+  top: 0%;
+
+  display: flexbox;
+  justify-content: center;
+  align-content: center;
+}
+h1 {
+  font-size: 8vh;
+  margin: 10px 0px 10px;
+  padding: 0px 10px 0px 10px;
+  user-select: none;
+}
+h2 {
+  font-size: 4vh;
+  margin: 20px 0px 10px;
+  user-select: none;
+}
+h3 {
+  font-size: 2vh;
+  margin: 20px 0px 10px;
+  user-select: none;
+}
+p {
+  margin: 10px 0px 10px;
+  padding: 0px 10px 0px 10px;
+}
+.section {
+  height: 20vh;
+  background-color: #d70000;
+}
+
+.form {
+  background-color: aqua;
+  height: 80%;
+}
+
+.cardContainer {
+  height: max-content;
+  display: flex; /* Change from 'flexbox' to 'flex' */
+  flex-wrap: wrap; /* Allows the cards to wrap to the next line */
+  justify-content: center; /* Centers cards horizontally */
+  align-items: center; /* Aligns cards vertically in the container */
+}
+
+.cards {
+  width: 300px;
+  height: 300px;
+  display: flex;
+  flex-wrap: wrap; /* Inline-flex is not necessary here */
+  justify-content: center;
+  align-items: initial; /* Centers content inside the cards */
+  margin: 10px;
+}
+.cards:hover {
+  width: 350px;
+  height: 350px;
+  transition: 0.3s cubic-bezier(0.22, 0.49, 0.33, 0.99);
+}
+.card-image {
+  height: 250px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 14px;
+}
+.CardStyling {
+  border-radius: 14px;
+  border: 2px solid #006ae2;
+}
+.reviews {
+  width: calc(50vw);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10%;
+  margin-bottom: 10%;
+}
+.slideCon {
+  width: 100vw;
+}
+.footer {
+  display: flex;
+  width: 100%;
+  height: max-content;
+  text-align: center;
+  padding: 0;
+}
+.footerCon {
+  background-color: rgba(177, 177, 177, 0);
+  backdrop-filter: blur(4px);
+}
+.fText {
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  font-weight: 500;
+
+  display: block;
+}
+.swiper-slide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mySwiper {
+  width: 80%; /* Adjust to fit your layout needs */
+  /* Optional: Set a maximum width for larger screens */
+}
+.swiperitems {
+  height: max-content;
+  width: 100%;
+}
+.partnerslides {
+  width: 100vw;
+}
+.reviewsh1 {
+  font-size: 8vh;
+}
+.swiper-pagination {
+  visibility: hidden;
+}
+@media only screen and (max-width: 600px) {
+  .reviews {
+    width: calc(100vw);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  h1 {
+    font-size: 8vh;
+    margin: 10px 0px 10px;
+    padding: 0px;
+    user-select: none;
+    text-align: center;
+  }
+  p {
+    text-align: center;
+  }
+  .herotext1 {
+    font-size: calc(100vw * 0.12);
+  }
+  .herotext2 {
+    font-size: calc(100vw * 0.04);
+  }
+  .herotext3 {
+    font-size: calc(100vw * 0.03);
+  }
+}
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* Your styles for medium screens */
+}
+@media (min-width: 1200px) {
+  /* Styles for large screens */
+}
+@media (max-width: 577px) {
+  .apptext {
+    font-size: calc(0.12 * 100vw);
   }
 }
