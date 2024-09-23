@@ -10,7 +10,7 @@ import Blogs from "./blogs";
 import { config } from "@fortawesome/fontawesome-svg-core";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 config.autoAddCss = false;
-import Auth from "./firebaseauth";
+import Auth from "./Authformtoggler";
 import LoginForm from "./login.js";
 import SignUpForm from "./signup";
 // import { db, auth, analytics } from "../path/to/firebase";

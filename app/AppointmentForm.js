@@ -1,9 +1,27 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import Auth from "./Authformtoggler";
 import Resform from "./resform";
 
 const FormComponent = () => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
   return (
     <div class="flex w-screen flex-wrap my-20 border-2  border-blue-500">
       <div class="flex-1  px-6 bg-blue-500">
@@ -15,9 +33,7 @@ const FormComponent = () => {
           us their trusted choice—read our reviews and see why!
         </p>
       </div>
-      <div class="flex-1">
-        <Resform></Resform>
-      </div>
+      <div class="flex-1">{user ? <Resform /> : <Auth />}</div>
     </div>
   );
 };

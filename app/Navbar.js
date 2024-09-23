@@ -1,7 +1,7 @@
 "use client";
 import { Link } from "lucide-react";
 import { useState, useEffect } from "react";
-
+import UserNav from "./UserNav";
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [theme, setTheme] = useState("light"); // Default theme is light
@@ -30,7 +30,6 @@ export default function Navbar() {
 
   return (
     <nav className="navbar fixed w-screen z-20 top-0 bg-white/0 backdrop-blur-lg p-2 dark:bg-white/30">
-      
       <div className="container mx-auto flex justify-between items-center">
         {/* Logo */}
         <div className="flex items-center">
@@ -77,6 +76,7 @@ export default function Navbar() {
             {theme === "dark" ? "🌙" : "☀️"}
           </button>
           {/* Mobile menu toggle button */}
+          <UserNav></UserNav>
           <button
             onClick={toggleMenu}
             className=" md:hidden focus:outline-none"
@@ -113,9 +113,9 @@ export default function Navbar() {
           <a href="/about" className="block NavTag">
             About
           </a>
-          <Link href="/make-appointment" className="block  NavTag">
+          <a href="/make-appointment" className="block  NavTag">
             Make Appointment
-          </Link>
+          </a>
           <a href="/services" className="block NavTag">
             Services
           </a>

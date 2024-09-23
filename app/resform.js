@@ -1,14 +1,8 @@
 "use client";
 import React, { useState } from "react";
-import Auth from "./firebaseauth";
-import Popup from "./popup";
-
+import { db, auth } from "./firebaseConfig";
+import { collection, addDoc, doc, setDoc } from "firebase/firestore";
 const resform = () => {
-  const [isPopupOpen, setIsPopupOpen] = useState(false);
-
-  const openPopup = () => setIsPopupOpen(true);
-  const closePopup = () => setIsPopupOpen(false);
-
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -40,8 +34,9 @@ const resform = () => {
     const re = /^\+[1-9]\d{1,14}$/;
     return re.test(phoneNumber);
   };
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!validateEmail(formData.email)) {
       alert("Please enter a valid email address.");
       return;
@@ -52,8 +47,40 @@ const resform = () => {
       );
       return;
     }
-    // Process form submission
-    console.log(formData);
+
+    if (!auth.currentUser) {
+      alert("You must be logged in to submit an appointment.");
+      return;
+    }
+
+    try {
+      // Reference to the 'pending appointments' collection
+      const pendingAppointmentsRef = collection(db, "Pending Appointments");
+
+      // Reference to the document with the user's UID
+      const userAppointmentRef = doc(
+        pendingAppointmentsRef,
+        auth.currentUser.uid
+      );
+
+      // Set the document data
+      await setDoc(userAppointmentRef, {
+        ...formData,
+        createdAt: new Date(),
+      });
+
+      console.log(
+        "Appointment saved successfully for user: ",
+        auth.currentUser.uid
+      );
+      alert("Your appointment has been submitted successfully!");
+      // Reset form or redirect user here
+    } catch (error) {
+      console.error("Error saving appointment: ", error);
+      alert(
+        "There was an error submitting your appointment. Please try again."
+      );
+    }
   };
 
   return (
@@ -261,13 +288,9 @@ const resform = () => {
           <button
             type="submit"
             className="w-full bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onClick={openPopup}
           >
             Submit
           </button>
-          <Popup isOpen={isPopupOpen} onClose={closePopup}>
-            <Auth></Auth>
-          </Popup>
         </div>
       </form>
     </div>

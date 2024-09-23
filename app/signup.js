@@ -36,7 +36,6 @@ const SignUpForm = () => {
       await setDoc(userRef, { registeredUser: username });
 
       console.log("Sign-up successful:", user);
-       
     } catch (error) {
       console.error("Sign-up error:", error.code, error.message);
       switch (error.code) {
@@ -62,7 +61,7 @@ const SignUpForm = () => {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push("/home");
+      router.push("/");
     } catch (error) {
       console.error("Google sign-in error:", error);
       setError("An error occurred during Google sign-in. Please try again.");
@@ -72,7 +71,7 @@ const SignUpForm = () => {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="username" className="block text-black mb-1 font-medium">
+        <label htmlFor="username" className="block mb-1 font-medium">
           Username
         </label>
         <input
@@ -81,11 +80,11 @@ const SignUpForm = () => {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
-          className="w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
         />
       </div>
       <div>
-        <label htmlFor="email" className="block text-black mb-1 font-medium">
+        <label htmlFor="email" className="block mb-1 font-medium">
           Email
         </label>
         <input
@@ -94,11 +93,11 @@ const SignUpForm = () => {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
         />
       </div>
       <div>
-        <label htmlFor="password" className="block text-black mb-1 font-medium">
+        <label htmlFor="password" className="block mb-1 font-medium">
           Password
         </label>
         <input
@@ -107,7 +106,7 @@ const SignUpForm = () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full px-3 py-2 border rounded-lg focus:outline-none text-black focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
         />
       </div>
       {error && <p className="text-red-500">{error}</p>}

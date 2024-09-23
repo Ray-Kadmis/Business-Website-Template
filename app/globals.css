@@ -68,7 +68,6 @@ html.dark {
 .hero {
   height: 80vh;
   top: 0%;
-
   display: flexbox;
   justify-content: center;
   align-content: center;

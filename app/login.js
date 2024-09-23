@@ -14,29 +14,29 @@ const LoginForm = () => {
   const [error, setError] = useState(null);
   const router = useRouter();
 
- const handleSubmit = async (e) => {
-   e.preventDefault();
-   setError(null);
-   try {
-     console.log("Attempting to sign in with email:", email);
-     const userCredential = await signInWithEmailAndPassword(
-       auth,
-       email,
-       password
-     );
-     console.log("Sign-in successful:", userCredential.user);
-     router.push("/home");
-   } catch (error) {
-     console.error("Sign-in error:", error.code, error.message);
-     setError(error.message);
-   }
- };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      console.log("Attempting to sign in with email:", email);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      console.log("Sign-in successful:", userCredential.user);
+      router.push("/");
+    } catch (error) {
+      console.error("Sign-in error:", error.code, error.message);
+      setError(error.message);
+    }
+  };
   const handleGoogleSignIn = async () => {
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push("/home"); // Redirect to home after successful login
+      router.push("/"); // Redirect to home after successful login
     } catch (error) {
       setError(error.message);
     }
@@ -45,7 +45,7 @@ const LoginForm = () => {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="email" className="block text-black mb-1 font-medium">
+        <label htmlFor="email" className="block mb-1 font-medium">
           Email
         </label>
         <input
@@ -54,11 +54,11 @@ const LoginForm = () => {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
         />
       </div>
       <div>
-        <label htmlFor="password" className="block text-black mb-1 font-medium">
+        <label htmlFor="password" className="block mb-1 font-medium">
           Password
         </label>
         <input
@@ -67,7 +67,7 @@ const LoginForm = () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full px-3 py-2 border rounded-lg focus:outline-none text-black focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
         />
       </div>
       {error && <p className="text-red-500">{error}</p>}

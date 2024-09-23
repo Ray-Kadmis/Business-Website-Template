@@ -8,7 +8,7 @@ const Auth = () => {
 
   return (
     <div className="max-w-md mx-auto mt-10 p-6 rounded-lg shadow-xl">
-      <h2 className="text-2xl text-black font-bold mb-6 text-center">
+      <h2 className="text-2xl font-bold mb-6 text-center">
         {isLogin
           ? "Please Login to Submit Appointment"
           : "Please Sign Up to Submit Appointment"}
