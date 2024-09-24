@@ -43,7 +43,12 @@ const statusIcons = {
 };
 
 const Dashboard = () => {
-  const [appointments, setAppointments] = useState([]);
+  const [appointments, setAppointments] = useState({
+    pending: [],
+    approved: [],
+    rejected: [],
+    attended: [],
+  });
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -51,7 +56,7 @@ const Dashboard = () => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && user.email === ADMIN_EMAIL) {
         setIsAdmin(true);
-        fetchAppointments();
+        fetchAllAppointments();
       } else {
         setIsAdmin(false);
       }
@@ -61,36 +66,67 @@ const Dashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  const fetchAppointments = async () => {
+  const fetchAppointmentsByStatus = async (status) => {
     try {
-      const appointmentsRef = collection(db, "pendingAppointments");
+      const collectionName =
+        status === "pending"
+          ? "Pending Appointments"
+          : `${status.charAt(0).toUpperCase() + status.slice(1)} Appointments`;
+      const appointmentsRef = collection(db, collectionName);
       const appointmentsSnapshot = await getDocs(appointmentsRef);
 
-      const fetchedAppointments = appointmentsSnapshot.docs.map((doc) => ({
+      return appointmentsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-        status: "pending", // Set initial status to pending
+        status: status,
         createdAt: doc.data().createdAt
           ? doc.data().createdAt.toDate()
-          : new Date(), // Convert Firestore Timestamp to Date
+          : new Date(),
       }));
-
-      setAppointments(fetchedAppointments);
     } catch (error) {
-      console.error("Error fetching appointments:", error);
+      console.error(`Error fetching ${status} appointments:`, error);
+      return [];
     }
   };
 
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      const appointmentRef = doc(db, "pendingAppointments", id);
+  const fetchAllAppointments = async () => {
+    const statuses = ["pending", "approved", "rejected", "attended"];
+    const fetchedAppointments = {};
 
-      // Remove from pending appointments
-      await deleteDoc(appointmentRef);
+    for (const status of statuses) {
+      fetchedAppointments[status] = await fetchAppointmentsByStatus(status);
+    }
+
+    setAppointments(fetchedAppointments);
+  };
+
+  const handleStatusChange = async (id, oldStatus, newStatus) => {
+    try {
+      const oldCollectionName =
+        oldStatus === "pending"
+          ? "Pending Appointments"
+          : `${
+              oldStatus.charAt(0).toUpperCase() + oldStatus.slice(1)
+            } Appointments`;
+      const newCollectionName = `${
+        newStatus.charAt(0).toUpperCase() + newStatus.slice(1)
+      } Appointments`;
+
+      const oldAppointmentRef = doc(db, oldCollectionName, id);
+      const appointmentToUpdate = appointments[oldStatus].find(
+        (app) => app.id === id
+      );
+
+      if (!appointmentToUpdate) {
+        console.error("Appointment not found");
+        return;
+      }
+
+      // Remove from old collection
+      await deleteDoc(oldAppointmentRef);
 
       // Add to new status collection
-      const newAppointmentRef = doc(db, `${newStatus}Appointments`, id);
-      const appointmentToUpdate = appointments.find((app) => app.id === id);
+      const newAppointmentRef = doc(db, newCollectionName, id);
       await setDoc(newAppointmentRef, {
         ...appointmentToUpdate,
         status: newStatus,
@@ -98,22 +134,18 @@ const Dashboard = () => {
       });
 
       // Update local state
-      setAppointments(
-        appointments.map((app) =>
-          app.id === id ? { ...app, status: newStatus } : app
-        )
+      await fetchAllAppointments();
+
+      console.log(
+        `Appointment moved from ${oldCollectionName} to ${newCollectionName}`
       );
     } catch (error) {
       console.error("Error updating appointment status:", error);
     }
   };
 
-  const getAppointmentsByStatus = (status) => {
-    return appointments.filter((appointment) => appointment.status === status);
-  };
-
   const AppointmentCard = ({ appointment, onStatusChange }) => (
-    <div className="shadow-md rounded-lg p-4 mb-4">
+    <div className="shadow-md border rounded-lg p-4 mb-4">
       <div className="mb-4">
         <h3 className="font-bold">{`${appointment.firstName} ${appointment.lastName}`}</h3>
         <p>Email: {appointment.email}</p>
@@ -127,24 +159,36 @@ const Dashboard = () => {
         <p>Created At: {appointment.createdAt.toLocaleString()}</p>
       </div>
       <div className="flex justify-between">
-        <button
-          onClick={() => onStatusChange(appointment.id, "rejected")}
-          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-        >
-          Reject
-        </button>
-        <button
-          onClick={() => onStatusChange(appointment.id, "approved")}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Approve
-        </button>
-        <button
-          onClick={() => onStatusChange(appointment.id, "attended")}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-        >
-          Attended
-        </button>
+        {appointment.status !== "rejected" && (
+          <button
+            onClick={() =>
+              onStatusChange(appointment.id, appointment.status, "rejected")
+            }
+            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            Reject
+          </button>
+        )}
+        {appointment.status !== "approved" && (
+          <button
+            onClick={() =>
+              onStatusChange(appointment.id, appointment.status, "approved")
+            }
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Approve
+          </button>
+        )}
+        {appointment.status !== "attended" && (
+          <button
+            onClick={() =>
+              onStatusChange(appointment.id, appointment.status, "attended")
+            }
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Attended
+          </button>
+        )}
       </div>
     </div>
   );
@@ -164,21 +208,7 @@ const Dashboard = () => {
     </div>
   );
 
-  const handleSignIn = async (email, password) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      console.error("Error signing in:", error);
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error("Error signing out:", error);
-    }
-  };
+  // ... (keep the existing handleSignIn and handleSignOut functions)
 
   if (isLoading) {
     return <div>Loading...</div>;
@@ -197,7 +227,13 @@ const Dashboard = () => {
       </div>
     );
   }
-
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
   return (
     <div className="space-y-6 pt-24 px-4">
       <div className="flex justify-between items-center">
@@ -211,40 +247,26 @@ const Dashboard = () => {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Object.entries(statusIcons).map(([status, Icon]) => (
-          <div
-            key={status}
-            className=" rounded-lg shadow-md p-4 border"
-          >
+          <div key={status} className="rounded-lg shadow-md p-4 border">
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-sm font-medium">
                 {status.charAt(0).toUpperCase() + status.slice(1)} Appointments
               </h3>
               <Icon className="h-4 w-4" />
             </div>
-            <p className="text-2xl font-bold">
-              {getAppointmentsByStatus(status).length}
-            </p>
+            <p className="text-2xl font-bold">{appointments[status].length}</p>
           </div>
         ))}
       </div>
 
       <div className="flex space-x-4 overflow-x-auto">
-        <StatusColumn
-          status="pending"
-          appointments={getAppointmentsByStatus("pending")}
-        />
-        <StatusColumn
-          status="approved"
-          appointments={getAppointmentsByStatus("approved")}
-        />
-        <StatusColumn
-          status="rejected"
-          appointments={getAppointmentsByStatus("rejected")}
-        />
-        <StatusColumn
-          status="attended"
-          appointments={getAppointmentsByStatus("attended")}
-        />
+        {Object.entries(appointments).map(([status, appointmentList]) => (
+          <StatusColumn
+            key={status}
+            status={status}
+            appointments={appointmentList}
+          />
+        ))}
       </div>
     </div>
   );
