@@ -65,6 +65,28 @@ const Dashboard = () => {
 
     return () => unsubscribe();
   }, []);
+  const checkAndUpdateAppointments = async () => {
+    const updateExpiredAppointments = httpsCallable(
+      functions,
+      "updateExpiredAppointments"
+    );
+    try {
+      const result = await updateExpiredAppointments();
+      console.log("Appointments updated:", result.data);
+      // Fetch all appointments again to reflect the changes
+      await fetchAllAppointments();
+    } catch (error) {
+      console.error("Error updating expired appointments:", error);
+    }
+  };
+
+  useEffect(() => {
+    // Check and update appointments every minute
+    const intervalId = setInterval(checkAndUpdateAppointments, 60000);
+
+    // Clean up the interval on component unmount
+    return () => clearInterval(intervalId);
+  }, []);
 
   const fetchAppointmentsByStatus = async (status) => {
     try {
@@ -207,9 +229,6 @@ const Dashboard = () => {
       ))}
     </div>
   );
-
-  // ... (keep the existing handleSignIn and handleSignOut functions)
-
   if (isLoading) {
     return <div>Loading...</div>;
   }
