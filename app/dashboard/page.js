@@ -9,14 +9,9 @@ import {
   setDoc,
   deleteDoc,
 } from "firebase/firestore";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-} from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { initializeApp } from "firebase/app";
-
+import { getFunctions, httpsCallable } from "firebase/functions";
 // Your Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -32,6 +27,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const functions = getFunctions(app);
 
 const ADMIN_EMAIL = "rehanworks200@gmail.com";
 
@@ -65,76 +61,78 @@ const Dashboard = () => {
 
     return () => unsubscribe();
   }, []);
-  const checkAndUpdateAppointments = async () => {
-    const updateExpiredAppointments = httpsCallable(
-      functions,
-      "updateExpiredAppointments"
-    );
-    try {
-      const result = await updateExpiredAppointments();
-      console.log("Appointments updated:", result.data);
-      // Fetch all appointments again to reflect the changes
-      await fetchAllAppointments();
-    } catch (error) {
-      console.error("Error updating expired appointments:", error);
-    }
-  };
+  
+const fetchAppointmentsByStatus = async (status) => {
+  try {
+    const collectionName =
+      status === "pending"
+        ? "Pending Appointments"
+        : `${status.charAt(0).toUpperCase() + status.slice(1)} Appointments`;
 
-  useEffect(() => {
-    // Check and update appointments every minute
-    const intervalId = setInterval(checkAndUpdateAppointments, 60000);
+    console.log(`Fetching from collection: ${collectionName}`);
+    const appointmentsRef = collection(db, collectionName);
+    const appointmentsSnapshot = await getDocs(appointmentsRef);
 
-    // Clean up the interval on component unmount
-    return () => clearInterval(intervalId);
-  }, []);
-
-  const fetchAppointmentsByStatus = async (status) => {
-    try {
-      const collectionName =
-        status === "pending"
-          ? "Pending Appointments"
-          : `${status.charAt(0).toUpperCase() + status.slice(1)} Appointments`;
-      const appointmentsRef = collection(db, collectionName);
-      const appointmentsSnapshot = await getDocs(appointmentsRef);
-
-      return appointmentsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        status: status,
-        createdAt: doc.data().createdAt
-          ? doc.data().createdAt.toDate()
-          : new Date(),
-      }));
-    } catch (error) {
-      console.error(`Error fetching ${status} appointments:`, error);
+    if (appointmentsSnapshot.empty) {
+      console.log(`No ${status} appointments found`);
       return [];
     }
-  };
 
-  const fetchAllAppointments = async () => {
-    const statuses = ["pending", "approved", "rejected", "attended"];
-    const fetchedAppointments = {};
+    return appointmentsSnapshot.docs.map((doc) => {
+      const data = doc.data();
 
+      // Handle createdAt field: check if it's a Firestore Timestamp and convert it
+      let createdAt = data.createdAt;
+      if (createdAt && typeof createdAt.toDate === "function") {
+        createdAt = createdAt.toDate(); // Firestore Timestamp to Date
+      } else if (createdAt && typeof createdAt === "string") {
+        createdAt = new Date(createdAt); // Handle string dates
+      }
+
+      return {
+        id: doc.id,
+        ...data,
+        status: status,
+        createdAt: createdAt || new Date(), // Default to current date if missing
+      };
+    });
+  } catch (error) {
+    console.error(`Error fetching ${status} appointments:`, error);
+    return [];
+  }
+};
+
+// Fetch all appointments
+const fetchAllAppointments = async () => {
+  const statuses = ["pending", "approved", "rejected", "attended"];
+  const fetchedAppointments = {};
+
+  try {
     for (const status of statuses) {
       fetchedAppointments[status] = await fetchAppointmentsByStatus(status);
     }
-
     setAppointments(fetchedAppointments);
-  };
+  } catch (error) {
+    console.error("Error fetching all appointments:", error);
+  }
+};
 
+// Check and update expired appointments
+const checkAndUpdateAppointments = async () => {
+  const updateExpiredAppointments = httpsCallable(
+    functions,
+    "updateExpiredAppointments"
+  );
+  try {
+    const result = await updateExpiredAppointments();
+    console.log("Appointments updated:", result.data);
+    await fetchAllAppointments(); // Refresh appointments after update
+  } catch (error) {
+    console.error("Error updating expired appointments:", error);
+  }
+};
   const handleStatusChange = async (id, oldStatus, newStatus) => {
     try {
-      const oldCollectionName =
-        oldStatus === "pending"
-          ? "Pending Appointments"
-          : `${
-              oldStatus.charAt(0).toUpperCase() + oldStatus.slice(1)
-            } Appointments`;
-      const newCollectionName = `${
-        newStatus.charAt(0).toUpperCase() + newStatus.slice(1)
-      } Appointments`;
-
-      const oldAppointmentRef = doc(db, oldCollectionName, id);
       const appointmentToUpdate = appointments[oldStatus].find(
         (app) => app.id === id
       );
@@ -144,28 +142,37 @@ const Dashboard = () => {
         return;
       }
 
-      // Remove from old collection
-      await deleteDoc(oldAppointmentRef);
-
-      // Add to new status collection
-      const newAppointmentRef = doc(db, newCollectionName, id);
-      await setDoc(newAppointmentRef, {
-        ...appointmentToUpdate,
-        status: newStatus,
-        updatedAt: new Date(),
+      const response = await fetch("/dashboard/api/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id,
+          oldStatus,
+          newStatus,
+          appointmentData: appointmentToUpdate,
+        }),
       });
 
-      // Update local state
-      await fetchAllAppointments();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || "Failed to update appointment status"
+        );
+      }
 
-      console.log(
-        `Appointment moved from ${oldCollectionName} to ${newCollectionName}`
-      );
+      const result = await response.json();
+      console.log(result.message);
+
+      // Refresh appointments
+      await fetchAllAppointments();
     } catch (error) {
       console.error("Error updating appointment status:", error);
     }
+    
   };
-
+ 
   const AppointmentCard = ({ appointment, onStatusChange }) => (
     <div className="shadow-md border rounded-lg p-4 mb-4">
       <div className="mb-4">
@@ -253,16 +260,25 @@ const Dashboard = () => {
       console.error("Error signing out:", error);
     }
   };
+
   return (
     <div className="space-y-6 pt-24 px-4">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        <button
-          onClick={handleSignOut}
-          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-        >
-          Sign Out
-        </button>
+        <div>
+          <button
+            onClick={handleSignOut}
+            className="px-4 py-2 mx-4 bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            Sign Out
+          </button>
+          <button
+            onClick={checkAndUpdateAppointments}
+            className="px-4 py-2 bg-purple-500  text-white rounded hover:bg-purple-600"
+          >
+            Check for Expired Appointments
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Object.entries(statusIcons).map(([status, Icon]) => (
@@ -290,5 +306,4 @@ const Dashboard = () => {
     </div>
   );
 };
-
 export default Dashboard;
