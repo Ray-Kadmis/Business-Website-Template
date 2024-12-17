@@ -1,7 +1,8 @@
 "use client";
 import React, { useState } from "react";
+import CalendarComponent from "./test/page";
 import { db, auth } from "./firebaseConfig";
-import { collection, addDoc, doc, setDoc } from "firebase/firestore";
+import { collection, doc, setDoc } from "firebase/firestore";
 const resform = () => {
   const [formData, setFormData] = useState({
     firstName: "",
@@ -15,6 +16,7 @@ const resform = () => {
     message: "",
     gender: "",
   });
+
   const services = ["Service 1", "Service 2", "Service 3"];
 
   const handleChange = (e) => {
@@ -82,7 +84,8 @@ const resform = () => {
       );
     }
   };
-
+  const today = new Date().toISOString().split("T")[0];
+  document.getElementById("datePicker").setAttribute("min", today);
   return (
     <div>
       <form
@@ -162,7 +165,7 @@ const resform = () => {
             </label>
             <input
               type="date"
-              id="date"
+              id="datePicker"
               name="date"
               value={formData.date}
               onChange={handleChange}
@@ -289,7 +292,7 @@ const resform = () => {
             type="submit"
             className="w-full bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            Submit
+            Make Appointment
           </button>
         </div>
       </form>
