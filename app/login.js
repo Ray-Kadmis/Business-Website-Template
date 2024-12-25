@@ -6,7 +6,7 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { auth } from "./firebaseConfig"; // Import the auth object
+import { auth } from "./firebaseConfig";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");

@@ -1,9 +1,9 @@
 "use client";
-import React, { useState } from "react";
-import CalendarComponent from "./test/page";
+import React, { useState, useEffect } from "react";
 import { db, auth } from "./firebaseConfig";
 import { collection, doc, setDoc } from "firebase/firestore";
-const resform = () => {
+import TimeSlotDropdown from "./timeSlotGen";
+const Resform = () => {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -84,8 +84,13 @@ const resform = () => {
       );
     }
   };
-  const today = new Date().toISOString().split("T")[0];
-  document.getElementById("datePicker").setAttribute("min", today);
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const datePicker = document.getElementById("datePicker");
+    if (datePicker) {
+      datePicker.setAttribute("min", today);
+    }
+  }, []);
   return (
     <div>
       <form
@@ -178,15 +183,8 @@ const resform = () => {
             <label className="block font-bold mb-2" htmlFor="time">
               Select Time
             </label>
-            <input
-              type="time"
-              id="time"
-              name="time"
-              value={formData.time}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border-2 text-black border-x-cyan-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
+            
+            <TimeSlotDropdown formData={formData} setFormData={setFormData} />
           </div>
 
           <div className="flex-1 mt-4 md:mt-0">
@@ -300,4 +298,4 @@ const resform = () => {
   );
 };
 
-export default resform;
+export default Resform;

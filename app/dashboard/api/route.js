@@ -43,11 +43,10 @@ export async function POST(request) {
       status: newStatus,
       updatedAt: new Date(),
     });
-        
 
-        console.log(
-          `Appointment moved from ${oldCollectionName} to ${newCollectionName}`
-        );
+    console.log(
+      `Appointment moved from ${oldCollectionName} to ${newCollectionName}`
+    );
     // Prepare and send SMS
     let message = "";
     switch (newStatus) {
