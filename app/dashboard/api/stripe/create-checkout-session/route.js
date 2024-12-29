@@ -23,11 +23,9 @@ export async function POST(req) {
 
     return new Response(JSON.stringify({ url: session.url }), { status: 200 });
   } catch (error) {
-    
     console.error("Error creating checkout session:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
     });
   }
-  
 }
