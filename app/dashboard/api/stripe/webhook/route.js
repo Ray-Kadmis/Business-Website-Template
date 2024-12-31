@@ -20,14 +20,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const stripe = new Stripe(
-  "sk_test_51QEqGNDCQX4iuy2s1xCRoZBzJ9FJDvWElGALAL7t7Lc6R1zp5FJITOOgXirth4K6sid8A7tCeL4C6Qsi6DbYC3jQ00h2qBO6LQ",
-  {
-    apiVersion: "2024-09-30.acacia", // Replace with the desired API version
-  }
-);
-const endpointSecret =
-  "whsec_31e599d44d376a5238893233900742cb74bfe7151914d58d205182272a8f9529";
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY{
+  apiVersion: "2024-09-30.acacia", // Replace with the desired API version
+});
 
 export async function POST(req) {
   const body = await req.text();
@@ -35,7 +30,7 @@ export async function POST(req) {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
+    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error("Webhook signature verification failed.", err.message);
     return new Response(`Webhook Error: ${err.message}`, { status: 400 });
