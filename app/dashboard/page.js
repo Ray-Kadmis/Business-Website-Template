@@ -8,15 +8,17 @@ import {
   getDocs,
   doc,
 } from "firebase/firestore";
+
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { initializeApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useRouter } from "next/navigation";
-// Your Firebase configuration
+
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: "website-template-31afe",
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_REALTIME_DATABASE_URL,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
@@ -47,35 +49,6 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   useEffect(() => {
-    // const checkPaymentStatus = async () => {
-    //   try {
-    //     const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL; // Get admin email from env
-    //     const paymentRef = doc(db, "payments", adminEmail);
-    //     const paymentSnap = await getDoc(paymentRef);
-
-    //     if (!paymentSnap.exists()) {
-    //       console.log("No document found for email:", adminEmail);
-    //       alert("Your subscription is inactive. Please renew to continue.");
-    //       router.push("/payment-reminder");
-    //       return;
-    //     }
-
-    //     const { paymentStatus, expiryDate } = paymentSnap.data();
-    //     const now = new Date().getTime();
-
-    //     if (paymentStatus === "active" && now < expiryDate) {
-    //       console.log("Subscription is active.");
-    //       fetchAllAppointments(); // Load appointments if payment is active
-    //     } else {
-    //       console.log("Subscription is inactive or expired.");
-    //       alert("Your subscription is inactive. Please renew to continue.");
-    //       router.push("/payment-reminder");
-    //     }
-    //   } catch (error) {
-    //     console.error("Error checking payment status:", error);
-    //     router.push("/payment-reminder");
-    //   }
-    // };
     const checkPaymentStatus = async () => {
       try {
         const user = auth.currentUser;
@@ -294,7 +267,11 @@ const Dashboard = () => {
     </div>
   );
   if (isLoading) {
-    return <div className="p-96">Loading...</div>;
+    return (
+      <div className="h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
   if (!isAdmin) {
     return (

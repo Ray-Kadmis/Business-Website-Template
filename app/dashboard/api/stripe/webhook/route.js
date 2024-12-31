@@ -1,11 +1,10 @@
 import Stripe from "stripe";
 import {
   getFirestore,
-  doc,
-  setDoc,
-  Timestamp,
+  query,
   collection,
-  writeBatch,
+  where,
+  getDocs,
 } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 const firebaseConfig = {
@@ -15,79 +14,129 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_REALTIME_DATABASE_URL,
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(
+  "sk_test_51QEqGNDCQX4iuy2s1xCRoZBzJ9FJDvWElGALAL7t7Lc6R1zp5FJITOOgXirth4K6sid8A7tCeL4C6Qsi6DbYC3jQ00h2qBO6LQ",
+  {
+    apiVersion: "2024-09-30.acacia", // Replace with the desired API version
+  }
+);
+const endpointSecret =
+  "whsec_31e599d44d376a5238893233900742cb74bfe7151914d58d205182272a8f9529";
 
 export async function POST(req) {
-  console.log("Webhook received!");
+  const body = await req.text();
+  const sig = req.headers.get("stripe-signature");
+  let event;
 
   try {
-    const sig = req.headers.get("stripe-signature");
-    const body = await req.text();
-    const event = stripe.webhooks.constructEvent(
-      body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-    console.log("Event type received:", event.type);
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object;
-      console.log("Session data:", JSON.stringify(session, null, 2));
-
-      const email = session.customer_email; // Ensure email is present
-      console.log("Customer email from session:", email);
-
-      if (!email) {
-        throw new Error("Customer email is missing from the session.");
-      }
-
-      // Calculate exactly one month from now
-      const now = new Date();
-      const expiryDate = new Date(now);
-      expiryDate.setMonth(expiryDate.getMonth() + 1);
-
-      const paymentRef = doc(db, "payments", email);
-
-      // Define the payment data
-      const paymentData = {
-        paymentStatus: "active",
-        expiryDate: Timestamp.fromDate(expiryDate),
-        customerId: session.customer,
-        subscriptionId: session.subscription,
-        createdAt: Timestamp.fromDate(now),
-        lastPaymentStatus: session.payment_status,
-        email: email,
-        lastUpdated: Timestamp.fromDate(now),
-      };
-
-      // Then use setDoc once with the data
-      try {
-        await setDoc(paymentRef, paymentData, { merge: true });
-        console.log("Document created successfully for:", email);
-      } catch (error) {
-        console.error("Error creating document:", error);
-      }
-      return new Response(
-        JSON.stringify({
-          received: true,
-          email: email,
-          documentCreated: true,
-        }),
-        { status: 200 }
-      );
-    }
-
-    return new Response(JSON.stringify({ received: true }), { status: 200 });
-  } catch (error) {
-    console.error("Webhook Error:", error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
-    });
+    event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
+  } catch (err) {
+    console.error("Webhook signature verification failed.", err.message);
+    return new Response(`Webhook Error: ${err.message}`, { status: 400 });
   }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = await stripe.checkout.sessions.retrieve(
+          event.data.object.id,
+          { expand: ["line_items"] }
+        );
+
+        const customerId = session.customer;
+        const customerDetails = session.customer_details;
+
+        if (customerDetails?.email) {
+          const userQuery = query(
+            collection(db, "users"),
+            where("email", "==", customerDetails.email)
+          );
+          const userDoc = await getDocs(userQuery);
+          if (userDoc.empty) throw new Error("User not found");
+          const user = userDoc.docs[0];
+
+          if (!user.data().customerId) {
+            const userRef = doc(db, "users", userDoc.docs[0].id);
+            await setDoc(userRef, { customerId }, { merge: true });
+          }
+
+          const lineItems = session.line_items?.data || [];
+
+          for (const item of lineItems) {
+            const priceId = item.price?.id;
+            const isSubscription = item.price?.type === "recurring";
+
+            if (isSubscription) {
+              let endDate = new Date();
+              if (priceId === process.env.STRIPE_YEARLY_PRICE_ID) {
+                endDate.setFullYear(endDate.getFullYear() + 1);
+              } else if (priceId === process.env.STRIPE_MONTHLY_PRICE_ID) {
+                endDate.setMonth(endDate.getMonth() + 1);
+              } else {
+                throw new Error("Invalid priceId");
+              }
+
+              const subscriptionRef = db
+                .collection("subscriptions")
+                .doc(user.id);
+              await db.runTransaction(async (transaction) => {
+                const doc = await transaction.get(subscriptionRef);
+                const subscriptionData = {
+                  userId: user.id,
+                  startDate: new Date(),
+                  endDate,
+                  plan: "premium",
+                  period:
+                    priceId === process.env.STRIPE_YEARLY_PRICE_ID
+                      ? "yearly"
+                      : "monthly",
+                };
+
+                if (!doc.exists) {
+                  transaction.set(subscriptionRef, subscriptionData);
+                } else {
+                  transaction.update(subscriptionRef, subscriptionData);
+                }
+
+                transaction.update(user.ref, { plan: "premium" });
+              });
+            } else {
+              // one_time_purchase handling
+            }
+          }
+        }
+        break;
+      }
+      case "customer.subscription.deleted": {
+        const subscription = await stripe.subscriptions.retrieve(
+          event.data.object.id
+        );
+        const userSnapshot = await db
+          .collection("users")
+          .where("customerId", "==", subscription.customer)
+          .get();
+
+        if (!userSnapshot.empty) {
+          await userSnapshot.docs[0].ref.update({ plan: "free" });
+        } else {
+          console.error("User not found for the subscription deleted event.");
+          throw new Error("User not found for the subscription deleted event.");
+        }
+        break;
+      }
+      default:
+        console.log(`Unhandled event type ${event.type}`);
+    }
+  } catch (error) {
+    console.error("Error handling event", error);
+    return new Response("Webhook Error", { status: 400 });
+  }
+
+  return new Response("Webhook received", { status: 200 });
 }
-
-

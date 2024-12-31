@@ -2,11 +2,14 @@
 const PaymentReminder = () => {
   const redirectToPayment = async () => {
     try {
-      const res = await fetch("./dashboard/api/stripe/create-checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "rehanworks200@gmail.com" }), // Admin's email
-      });
+      const res = await fetch(
+        "./dashboard/api/stripe/create-checkout-session",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: process.env.NEXT_PUBLIC_ADMIN_EMAIL }), // Admin's email
+        }
+      );
 
       const { url } = await res.json();
       if (url) {
