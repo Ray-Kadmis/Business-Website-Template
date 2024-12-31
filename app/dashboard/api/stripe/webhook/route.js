@@ -20,7 +20,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY{
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY,{
   apiVersion: "2024-09-30.acacia", // Replace with the desired API version
 });
 
