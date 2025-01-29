@@ -1,20 +1,8 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, deleteDoc } from "firebase/firestore";
+
+import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import twilio from "twilio";
-
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PR0JECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
+import { NextResponse } from "next/server";
+import { db } from "@/app/firebaseConfig";
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
@@ -68,12 +56,12 @@ export async function POST(request) {
       to: appointmentData.phoneNumber,
     });
 
-    return Response.json({
+    return NextResponse.json({
       message: "Appointment status updated and SMS sent successfully",
     });
   } catch (error) {
     console.error("Error updating appointment status:", error);
-    return Response.json(
+    return NextResponse.json(
       { message: "Error updating appointment status", error: error.message },
       { status: 500 }
     );

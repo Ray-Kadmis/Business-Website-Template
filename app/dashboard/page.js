@@ -1,36 +1,26 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Calendar, CheckCircle, XCircle, UserCheck } from "lucide-react";
 import {
-  getFirestore,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  UserCheck,
+  Archive,
+} from "lucide-react";
+import {
   collection,
   getDoc,
   getDocs,
   doc,
+  setDoc,
+  deleteDoc,
 } from "firebase/firestore";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { db, auth } from "@/app/firebaseConfig";
 
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { initializeApp } from "firebase/app";
-import { getFunctions, httpsCallable } from "firebase/functions";
 import { useRouter } from "next/navigation";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: "website-template-31afe",
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_REALTIME_DATABASE_URL,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const functions = getFunctions(app);
-
+import ExportAppointments from "./ReportFunction";
 const statusIcons = {
   pending: Calendar,
   approved: CheckCircle,
@@ -46,7 +36,7 @@ const Dashboard = () => {
     attended: [],
   });
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   useEffect(() => {
     const checkPaymentStatus = async () => {
@@ -95,10 +85,13 @@ const Dashboard = () => {
         return false;
       }
     };
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
         setIsAdmin(true);
         checkPaymentStatus(); // Check payment when admin logs in
+        setIsLoading(true); // Add loading state
+        await fetchAllAppointments(); // Fetch appointments when admin logs in
+        setIsLoading(false);
       } else {
         setIsAdmin(false);
         router.push("/");
@@ -155,22 +148,37 @@ const Dashboard = () => {
       console.error("Error fetching all appointments:", error);
     }
   };
-  // Check and update expired appointments
-  const checkAndUpdateAppointments = async () => {
-    const updateExpiredAppointments = httpsCallable(
-      functions,
-      "updateExpiredAppointments"
-    );
+  const handleArchive = async (id, appointmentData) => {
     try {
-      const result = await updateExpiredAppointments();
-      console.log("Appointments updated:", result.data);
-      await fetchAllAppointments(); // Refresh appointments after update
+      // First, add the appointment to the archive collection
+      const archiveRef = doc(db, "Archive", id);
+      await setDoc(archiveRef, {
+        ...appointmentData,
+        archivedAt: new Date(),
+      });
+
+      // Then delete it from the attended appointments collection
+      const attendedRef = doc(db, "Attended Appointments", id);
+      await deleteDoc(attendedRef);
+
+      // Refresh the appointments
+      await fetchAllAppointments();
     } catch (error) {
-      console.error("Error updating expired appointments:", error);
+      console.error("Error archiving appointment:", error);
     }
   };
   const handleStatusChange = async (id, oldStatus, newStatus) => {
     try {
+      // Add confirmation dialog for attended status
+      if (newStatus === "attended") {
+        const isConfirmed = window.confirm(
+          "Are you sure this appointment has been attended? This action will mark the appointment as completed."
+        );
+        if (!isConfirmed) {
+          return; // Exit if user cancels
+        }
+      }
+
       const appointmentToUpdate = appointments[oldStatus].find(
         (app) => app.id === id
       );
@@ -219,35 +227,47 @@ const Dashboard = () => {
         <p>Created At: {appointment.createdAt.toLocaleString()}</p>
       </div>
       <div className="flex justify-between">
-        {appointment.status !== "rejected" && (
+        {appointment.status === "attended" ? (
           <button
-            onClick={() =>
-              onStatusChange(appointment.id, appointment.status, "rejected")
-            }
-            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+            onClick={() => handleArchive(appointment.id, appointment)}
+            className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center gap-2"
           >
-            Reject
+            <Archive className="h-4 w-4" />
+            Archive
           </button>
-        )}
-        {appointment.status !== "approved" && (
-          <button
-            onClick={() =>
-              onStatusChange(appointment.id, appointment.status, "approved")
-            }
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Approve
-          </button>
-        )}
-        {appointment.status !== "attended" && (
-          <button
-            onClick={() =>
-              onStatusChange(appointment.id, appointment.status, "attended")
-            }
-            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            Attended
-          </button>
+        ) : (
+          <>
+            {appointment.status !== "rejected" && (
+              <button
+                onClick={() =>
+                  onStatusChange(appointment.id, appointment.status, "rejected")
+                }
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Reject
+              </button>
+            )}
+            {appointment.status !== "approved" && (
+              <button
+                onClick={() =>
+                  onStatusChange(appointment.id, appointment.status, "approved")
+                }
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Approve
+              </button>
+            )}
+            {appointment.status !== "attended" && (
+              <button
+                onClick={() =>
+                  onStatusChange(appointment.id, appointment.status, "attended")
+                }
+                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+              >
+                Attended
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -268,8 +288,8 @@ const Dashboard = () => {
   );
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        Loading...
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -304,12 +324,8 @@ const Dashboard = () => {
           >
             Sign Out
           </button>
-          <button
-            onClick={checkAndUpdateAppointments}
-            className="px-4 py-2 bg-purple-500  text-white rounded hover:bg-purple-600"
-          >
-            Check for Expired Appointments
-          </button>
+          
+          <ExportAppointments></ExportAppointments>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

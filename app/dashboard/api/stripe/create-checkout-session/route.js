@@ -1,6 +1,5 @@
-import Stripe from "stripe";
+import stripe from "@/app/stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID;
 
 export async function POST(req) {
@@ -17,6 +16,7 @@ export async function POST(req) {
         },
       ],
       customer_email: email, // Auto-fill email in Stripe Checkout
+      // client_reference_id: "user_id_or_unique_identifier",
       success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard`, // Redirect to dashboard on success
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/payment-reminder`, // Redirect to reminder on cancel
     });
