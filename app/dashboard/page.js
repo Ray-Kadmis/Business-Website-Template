@@ -12,6 +12,8 @@ import {
   getDoc,
   getDocs,
   doc,
+  query,
+  where,
   setDoc,
   deleteDoc,
 } from "firebase/firestore";
@@ -46,42 +48,40 @@ const Dashboard = () => {
           throw new Error("No authenticated user found");
         }
 
-        const paymentRef = doc(db, "payments", user.email);
-        const paymentSnap = await getDoc(paymentRef);
+        // Check user exists in 'users' collection
+        const usersRef = collection(db, "users");
+        const userQuery = query(usersRef, where("email", "==", user.email));
+        const userSnapshot = await getDocs(userQuery);
 
-        if (!paymentSnap.exists()) {
-          console.log("No payment document found for email:", user.email);
+        // Redirect if no matching user document
+        if (userSnapshot.empty) {
+          console.log("User not found in database:", user.email);
           router.push("/payment-reminder");
           return false;
         }
 
-        const { paymentStatus, expiryDate } = paymentSnap.data();
-        const now = new Date();
+        // Verify email matches admin/user document
+        const userDoc = userSnapshot.docs[0];
+        const userData = userDoc.data();
+        if (userData.email !== user.email) {
+          console.log("Email mismatch with registered user");
+          router.push("/payment-reminder");
+          return false;
+        }
 
-        // Convert Firestore Timestamp to Date
-        const expiryDateTime = expiryDate.toDate();
+        // Check creation date validity
+        const createdAt = userData.createdAt.toDate();
+        const expirationDate = new Date(createdAt);
+        expirationDate.setDate(expirationDate.getDate() + 37); // 30 days + 7 days
 
-        if (paymentStatus === "active" && now < expiryDateTime) {
-          console.log(
-            "Subscription is active until:",
-            expiryDateTime.toLocaleString()
-          );
-          return true;
-        } else {
-          console.log(
-            "Subscription status:",
-            paymentStatus,
-            "Expiry:",
-            expiryDateTime.toLocaleString(),
-            "Current time:",
-            now.toLocaleString()
-          );
+        if (new Date() > expirationDate) {
+          console.log("Account creation period expired (37 days)");
           router.push("/payment-reminder");
           return false;
         }
       } catch (error) {
-        console.error("Error checking payment status:", error);
-        router.push("/payment-reminder");
+        console.error("Payment check error:", error);
+
         return false;
       }
     };
@@ -324,7 +324,7 @@ const Dashboard = () => {
           >
             Sign Out
           </button>
-          
+
           <ExportAppointments></ExportAppointments>
         </div>
       </div>
