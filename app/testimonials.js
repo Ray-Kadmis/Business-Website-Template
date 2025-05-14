@@ -90,8 +90,8 @@ const slidesData = [
 ];
 const testimonials = () => {
   return (
-    <div class="flex w-screen flex-wrap">
-      <div class="flex-1 px-6  bg-blue-500">
+    <div className="flex w-screen flex-wrap">
+      <div className="flex-1 px-6  bg-blue-500">
         <h1 className="text-6xl apptext my-10 lg:text-8xl">
           TRUSTED BY CUSTOMERS
         </h1>
@@ -102,7 +102,7 @@ const testimonials = () => {
           us their trusted choice—read our reviews and see why!
         </p>
       </div>
-      <div class="flex-1 bg-red-500">
+      <div className="flex-1 bg-red-500">
         <Slider slides={slidesData} />
       </div>
     </div>

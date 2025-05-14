@@ -1,5 +1,5 @@
 "use client";
-import { Link } from "lucide-react";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import UserNav from "./UserNav";
 export default function Navbar() {
@@ -14,7 +14,13 @@ export default function Navbar() {
       document.documentElement.classList.toggle("dark", savedTheme === "dark");
     }
   }, []);
-
+  const handleScroll = (e, id) => {
+    e.preventDefault();
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
+  };
   // Toggle the theme between light and dark mode
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
@@ -42,22 +48,46 @@ export default function Navbar() {
             isOpen ? "block" : "hidden "
           } md:block`}
         >
-          <a href="/" className="block NavTag">
+          <a
+            href="#hero"
+            onClick={(e) => handleScroll(e, "hero")}
+            className="block NavTag"
+          >
             Home
           </a>
-          <a href="/about" className="NavTag">
+          <a
+            href="#hero"
+            onClick={(e) => handleScroll(e, "About")}
+            className="block NavTag"
+          >
             About
           </a>
-          <a href="/services" className="NavTag">
+          <a
+            href="#services"
+            onClick={(e) => handleScroll(e, "Services")}
+            className="NavTag"
+          >
             Services
           </a>
-          <a href="/news" className="NavTag">
+          <a
+            href="#hero"
+            onClick={(e) => handleScroll(e, "News")}
+            className="block NavTag"
+          >
             News
           </a>
-          <a href="/career" className="NavTag">
+          <a
+            href="#hero"
+            onClick={(e) => handleScroll(e, "Career")}
+            className="block NavTag"
+          >
             Career
           </a>
-          <a href="/contact" className="NavTag">
+          <a
+            href="#hero"
+            onClick={(e) => handleScroll(e, "ContactUs")}
+            className="block NavTag"
+          >
             Contact Us
           </a>
         </div>

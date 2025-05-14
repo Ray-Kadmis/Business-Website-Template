@@ -85,10 +85,15 @@ const Resform = () => {
     }
   };
   useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    const minDate = `${year}-${month}-${day}`;
+
     const datePicker = document.getElementById("datePicker");
     if (datePicker) {
-      datePicker.setAttribute("min", today);
+      datePicker.setAttribute("min", minDate);
     }
   }, []);
   return (
@@ -183,7 +188,7 @@ const Resform = () => {
             <label className="block font-bold mb-2" htmlFor="time">
               Select Time
             </label>
-            
+
             <TimeSlotDropdown formData={formData} setFormData={setFormData} />
           </div>
 

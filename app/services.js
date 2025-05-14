@@ -2,7 +2,7 @@ import React from "react";
 import Cards from "./cards";
 const Services = () => {
   return (
-    <div className="services items-center">
+    <div id="services" className="services items-center">
       <h1 className="text-center">SERVICES</h1>
       <div className="cardContainer">
         <Cards

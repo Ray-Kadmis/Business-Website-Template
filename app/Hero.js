@@ -2,7 +2,10 @@ import React from "react";
 
 const Hero = () => {
   return (
-    <div className="hero bg-[url('https://images.pexels.com/photos/2832432/pexels-photo-2832432.png')] bg-cover bg-center offset-0">
+    <div
+      id="hero"
+      className="hero bg-[url('https://images.pexels.com/photos/2832432/pexels-photo-2832432.png')] bg-cover bg-center offset-0"
+    >
       <h1 className="text-center herotext1">
         Relieve Pain, Restore Health, Renew Life
       </h1>

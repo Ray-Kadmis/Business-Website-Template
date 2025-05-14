@@ -23,9 +23,9 @@ const FormComponent = () => {
     return <div>Loading...</div>;
   }
   return (
-    <div class="flex w-screen flex-wrap my-20 border-2  border-blue-500">
-      <div class="flex-1  px-6 bg-blue-500">
-        <h1 className="apptext md:text-8xl my-10">SET UP AN APPOINTMENT?</h1>
+    <div className="flex w-screen flex-wrap my-20 border-2  border-blue-500">
+      <div className="flex-1  px-6 bg-blue-500">
+        <h1 className="apptext md:text-8xl my-10">NEED AN APPOINTMENT?</h1>
         <p className="reviewspara">
           At [Your Company Name], our customers’ trust speaks through their
           reviews. We're proud to deliver quality service that consistently
@@ -33,7 +33,7 @@ const FormComponent = () => {
           us their trusted choice—read our reviews and see why!
         </p>
       </div>
-      <div class="flex-1">{user ? <Resform /> : <Auth />}</div>
+      <div className="flex-1">{user ? <Resform /> : <Auth />}</div>
     </div>
   );
 };
