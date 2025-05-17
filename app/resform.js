@@ -1,8 +1,18 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { db, auth } from "./firebaseConfig";
-import { collection, doc, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  setDoc,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  increment,
+} from "firebase/firestore";
 import TimeSlotDropdown from "./timeSlotGen";
+
 const Resform = () => {
   const [formData, setFormData] = useState({
     firstName: "",
@@ -16,6 +26,10 @@ const Resform = () => {
     message: "",
     gender: "",
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastSubmissionTime, setLastSubmissionTime] = useState(null);
+  const COOLDOWN_PERIOD = 5 * 60 * 1000; // 5 minutes in milliseconds
+  const MAX_SUBMISSIONS_PER_DAY = 3;
 
   const services = ["Service 1", "Service 2", "Service 3"];
 
@@ -36,8 +50,28 @@ const Resform = () => {
     const re = /^\+[1-9]\d{1,14}$/;
     return re.test(phoneNumber);
   };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isSubmitting) {
+      alert("Please wait while your previous submission is being processed.");
+      return;
+    }
+
+    // Check cooldown period
+    if (
+      lastSubmissionTime &&
+      Date.now() - lastSubmissionTime < COOLDOWN_PERIOD
+    ) {
+      const remainingTime = Math.ceil(
+        (COOLDOWN_PERIOD - (Date.now() - lastSubmissionTime)) / 1000 / 60
+      );
+      alert(
+        `Please wait ${remainingTime} minutes before submitting another appointment.`
+      );
+      return;
+    }
 
     if (!validateEmail(formData.email)) {
       alert("Please enter a valid email address.");
@@ -55,35 +89,126 @@ const Resform = () => {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
-      // Reference to the 'pending appointments' collection
+      // Check submission count for today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
       const pendingAppointmentsRef = collection(db, "Pending Appointments");
 
-      // Reference to the document with the user's UID
+      // First, let's check if the index exists by making a simpler query
+      try {
+        // Simple query to check if the collection is accessible
+        const basicQuery = query(
+          pendingAppointmentsRef,
+          where("userId", "==", auth.currentUser.uid)
+        );
+        await getDocs(basicQuery);
+
+        // If that succeeds, try the full query
+        const userAppointmentsQuery = query(
+          pendingAppointmentsRef,
+          where("userId", "==", auth.currentUser.uid),
+          where("createdAt", ">=", today),
+          orderBy("createdAt", "desc")
+        );
+
+        const snapshot = await getDocs(userAppointmentsQuery);
+
+        if (snapshot.size >= MAX_SUBMISSIONS_PER_DAY) {
+          alert(
+            `You have reached the maximum number of appointments (${MAX_SUBMISSIONS_PER_DAY}) for today. Please try again tomorrow.`
+          );
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (error) {
+        console.error("Query error details:", error);
+        if (error.code === "failed-precondition") {
+          // Log the full error for debugging
+          console.error("Index error details:", {
+            code: error.code,
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+          });
+
+          // Try a fallback approach without the complex query
+          const basicQuery = query(
+            pendingAppointmentsRef,
+            where("userId", "==", auth.currentUser.uid)
+          );
+          const basicSnapshot = await getDocs(basicQuery);
+
+          // Filter the results in memory
+          const todayAppointments = basicSnapshot.docs.filter((doc) => {
+            const createdAt = doc.data().createdAt?.toDate();
+            return createdAt && createdAt >= today;
+          });
+
+          if (todayAppointments.length >= MAX_SUBMISSIONS_PER_DAY) {
+            alert(
+              `You have reached the maximum number of appointments (${MAX_SUBMISSIONS_PER_DAY}) for today. Please try again tomorrow.`
+            );
+            setIsSubmitting(false);
+            return;
+          }
+        } else {
+          throw error; // Re-throw other errors
+        }
+      }
+
+      // Reference to the user's appointment document
       const userAppointmentRef = doc(
         pendingAppointmentsRef,
-        auth.currentUser.uid
+        auth.currentUser.uid // Use just the user ID as the document ID for pending appointments
       );
 
-      // Set the document data
-      await setDoc(userAppointmentRef, {
-        ...formData,
-        createdAt: new Date(),
-      });
+      // Set the document data with merge option to update if exists
+      await setDoc(
+        userAppointmentRef,
+        {
+          ...formData,
+          userId: auth.currentUser.uid,
+          createdAt: new Date(),
+          status: "pending",
+          updatedAt: new Date(), // Add updatedAt field to track modifications
+          submissionCount: increment(1), // Track number of submissions
+        },
+        { merge: true }
+      ); // Use merge option to update existing document
 
+      setLastSubmissionTime(Date.now());
       console.log(
         "Appointment saved successfully for user: ",
         auth.currentUser.uid
       );
       alert("Your appointment has been submitted successfully!");
-      // Reset form or redirect user here
+      // Reset form
+      setFormData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phoneNumber: "",
+        date: "",
+        time: "",
+        service: "",
+        age: "",
+        message: "",
+        gender: "",
+      });
     } catch (error) {
       console.error("Error saving appointment: ", error);
       alert(
         "There was an error submitting your appointment. Please try again."
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
   useEffect(() => {
     const today = new Date();
     const year = today.getFullYear();
@@ -96,6 +221,7 @@ const Resform = () => {
       datePicker.setAttribute("min", minDate);
     }
   }, []);
+
   return (
     <div>
       <form

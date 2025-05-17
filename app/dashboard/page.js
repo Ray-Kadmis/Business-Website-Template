@@ -188,15 +188,23 @@ const Dashboard = () => {
         return;
       }
 
+      // Generate a new unique ID for approved/rejected states
+      const newId =
+        oldStatus === "pending"
+          ? `${appointmentToUpdate.userId}_${Date.now()}` // Create new ID for approved/rejected
+          : id; // Keep existing ID for other status changes
+
       // First, add to the new status collection
       const newCollectionName = `${
         newStatus.charAt(0).toUpperCase() + newStatus.slice(1)
       } Appointments`;
-      const newAppointmentRef = doc(db, newCollectionName, id);
+      const newAppointmentRef = doc(db, newCollectionName, newId);
       await setDoc(newAppointmentRef, {
         ...appointmentToUpdate,
+        id: newId, // Update the ID in the document data
         status: newStatus,
         updatedAt: new Date(),
+        originalSubmissionDate: appointmentToUpdate.createdAt, // Keep track of original submission
       });
 
       // Then, delete from the old status collection
@@ -218,7 +226,7 @@ const Dashboard = () => {
     }
   };
   const AppointmentCard = ({ appointment, onStatusChange }) => (
-    <div className="shadow-md border rounded-lg p-4 mb-4">
+    <div className="shadow-md border border-black dark:border-white rounded-lg p-4 mb-4">
       <div className="mb-4">
         <h3 className="font-bold">{`${appointment.firstName} ${appointment.lastName}`}</h3>
         <p>Email: {appointment.email}</p>
@@ -296,11 +304,11 @@ const Dashboard = () => {
       className={`rounded-lg shadow-md p-4 transition-all duration-200 
         ${
           isActive
-            ? "border-2 border-blue-500 dark:border-blue-500"
+            ? "border-2 border-blue-500"
             : "border border-black dark:border-white"
         } 
-        sm:cursor-default sm:hover:bg-transparent sm:hover:shadow-md sm:pointer-events-none
-        cursor-pointer hover:bg-gray-50`}
+        sm:cursor-default  sm:pointer-events-none
+        cursor-pointer hover:bg-gray-700`}
       onClick={() => {
         if (window.innerWidth < 640) {
           setActiveStatus(isActive ? null : status);
@@ -328,15 +336,11 @@ const Dashboard = () => {
     return (
       <div className="space-y-4 p-4">
         {appointments.map((appointment) => (
-          <div
+          <AppointmentCard
             key={appointment.id}
-            className="border border-black dark:border-white rounded-lg"
-          >
-            <AppointmentCard
-              appointment={appointment}
-              onStatusChange={handleStatusChange}
-            />
-          </div>
+            appointment={appointment}
+            onStatusChange={handleStatusChange}
+          />
         ))}
       </div>
     );
@@ -393,7 +397,7 @@ const Dashboard = () => {
           />
         ))}
       </div>
-      <div className="block sm:hidden">
+      <div className="block sm:hidden mb-4">
         {activeStatus && (
           <div className="mt-4 border rounded-lg overflow-hidden">
             <StatusAppointments

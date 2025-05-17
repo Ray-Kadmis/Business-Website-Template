@@ -23,7 +23,7 @@ const FormComponent = () => {
     return <div>Loading...</div>;
   }
   return (
-    <div className="flex w-screen flex-wrap my-20 border-2  border-blue-500">
+    <div className="flex w-screen flex-wrap my-20 border-y-2  border-blue-500">
       <div className="flex-1  px-6 bg-blue-500">
         <h1 className="apptext md:text-8xl my-10">NEED AN APPOINTMENT?</h1>
         <p className="reviewspara">
