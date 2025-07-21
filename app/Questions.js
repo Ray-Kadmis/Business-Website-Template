@@ -68,7 +68,7 @@ const Questions = () => {
 
   return (
     <div className="flex justify-center items-center my-20 h-max">
-      <div className="w-full max-w-6xl rounded-lg border-2 shadow-md">
+      <div className="w-full max-w-6xl mx-2 rounded-lg border-black dark:border-white border-2 shadow-md">
       <h1 className=" text-center py-6">Frequently Asked Questions</h1>
         {faqs.map((faq, index) => (
           <FAQItem key={index} question={faq.question} answer={faq.answer} />

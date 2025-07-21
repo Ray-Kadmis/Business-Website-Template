@@ -6,6 +6,7 @@ import {
   XCircle,
   UserCheck,
   Archive,
+  BarChart2,
 } from "lucide-react";
 import {
   collection,
@@ -23,6 +24,8 @@ import { db, auth } from "@/app/firebaseConfig";
 import { useRouter } from "next/navigation";
 
 import ExportAppointments from "./ReportFunction";
+import Analytics from "./Analytics";
+
 const statusIcons = {
   pending: Calendar,
   approved: CheckCircle,
@@ -415,6 +418,15 @@ const Dashboard = () => {
             appointments={appointmentList}
           />
         ))}
+      </div>
+
+      {/* Analytics Section */}
+      <div className="mt-8 border-t pt-8">
+        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+          <BarChart2 className="h-6 w-6" />
+          Analytics
+        </h2>
+        <Analytics />
       </div>
     </div>
   );

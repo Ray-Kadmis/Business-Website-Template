@@ -9,6 +9,7 @@ import {
   deleteDoc,
   updateDoc,
 } from "firebase/firestore";
+
 export async function POST(req) {
   const rawBody = await req.text();
   const signature = req.headers.get("stripe-signature");
@@ -34,69 +35,106 @@ export async function POST(req) {
         );
 
         const email = session?.customer_details?.email;
-        const customerId = session.customer;
-        const subscriptionId = session.subscription;
+        const customerId = session?.customer?.id || session.customer;
+        const subscriptionId =
+          session?.subscription?.id || session.subscription;
 
-        let subscriptionStatus = null;
-        if (subscriptionId) {
-          try {
-            const subscription = await stripe.subscriptions.retrieve(
-              subscriptionId
-            );
-            subscriptionStatus = subscription.status;
-          } catch (err) {
-            console.error("Failed to fetch subscription:", err);
-          }
-        }
+        console.log("Checkout completed:", {
+          email,
+          customerId,
+          subscriptionId,
+          sessionId: session.id,
+        });
 
         if (!email) {
           console.error("No email found in checkout session");
           return new Response("Email not found in session", { status: 400 });
         }
 
+        // Get subscription status
+        let subscriptionStatus = null;
+        let subscription = null;
+        if (subscriptionId) {
+          try {
+            subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            subscriptionStatus = subscription.status;
+            console.log("Retrieved subscription status:", subscriptionStatus);
+          } catch (err) {
+            console.error("Failed to fetch subscription:", err);
+          }
+        }
+
+        // Find user by email (primary identifier)
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("email", "==", email));
         const snapshot = await getDocs(q);
 
+        // Prepare user data with latest info
         const userData = {
           email,
-          createdAt: new Date(),
-          customerId,
+          updatedAt: new Date(),
+          customerId, // Always update with latest customer ID
         };
-        if (subscriptionId) userData.subscriptionId = subscriptionId;
-        if (subscriptionStatus)
-          userData.subscriptionStatus = subscriptionStatus;
 
-        if (snapshot.empty) {
-          await addDoc(usersRef, userData);
-          console.log("New user created:", email);
-        } else {
+        if (subscriptionId) {
+          userData.subscriptionId = subscriptionId;
+          userData.subscriptionStatus = subscriptionStatus;
+        }
+
+        // If user exists, update their document
+        if (!snapshot.empty) {
           const userDoc = snapshot.docs[0];
+          const existingData = userDoc.data();
+
+          console.log("Updating existing user:", {
+            email,
+            oldCustomerId: existingData.customerId,
+            newCustomerId: customerId,
+            oldSubscriptionId: existingData.subscriptionId,
+            newSubscriptionId: subscriptionId,
+          });
+
           await updateDoc(userDoc.ref, userData);
           console.log("Updated user:", email);
+        } else {
+          // If new user, create document
+          userData.createdAt = new Date();
+          await addDoc(usersRef, userData);
+          console.log("New user created:", email);
         }
         break;
       }
+
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
         const customerId = subscription.customer;
+        const subscriptionId = subscription.id;
 
+        console.log("Subscription deleted:", {
+          customerId,
+          subscriptionId,
+        });
+
+        // Find user by customer ID
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("customerId", "==", customerId));
         const snapshot = await getDocs(q);
 
-        if (snapshot.empty) {
-          await addDoc(usersRef, {
-            email: email,
-            createdAt: new Date(),
-            customerId: customerId,
-          });
-          console.log("New user created:", email);
-        } else {
+        if (!snapshot.empty) {
           const userDoc = snapshot.docs[0];
-          // Replace update() with updateDoc()
-          await updateDoc(userDoc.ref, { customerId: customerId });
-          console.log("Updated user with customerId:", email);
+          const userData = userDoc.data();
+
+          // Only update if this is the current subscription
+          if (userData.subscriptionId === subscriptionId) {
+            await updateDoc(userDoc.ref, {
+              subscriptionStatus: "canceled",
+              updatedAt: new Date(),
+            });
+            console.log(
+              "Updated user subscription status to canceled:",
+              userData.email
+            );
+          }
         }
         break;
       }
@@ -116,8 +154,11 @@ export async function POST(req) {
 
         if (!snapshot.empty) {
           const userDoc = snapshot.docs[0];
-          await deleteDoc(userDoc.ref);
-          console.log("User deleted due to refund:", userDoc.id);
+          await updateDoc(userDoc.ref, {
+            subscriptionStatus: "refunded",
+            updatedAt: new Date(),
+          });
+          console.log("Updated user status to refunded:", userDoc.id);
         } else {
           console.error("No user found for customerId:", customerId);
         }

@@ -2,7 +2,13 @@
 import { NextResponse } from "next/server";
 import stripe from "@/app/stripe";
 import { db } from "@/app/firebaseConfig";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+} from "firebase/firestore";
 
 export async function POST(req) {
   try {
@@ -31,103 +37,110 @@ export async function POST(req) {
     }
 
     const userData = snapshot.docs[0].data();
+    const userDocRef = snapshot.docs[0].ref;
     console.log(
       "Raw user data from Firestore:",
       JSON.stringify(userData, null, 2)
     );
 
-    // Get and validate subscriptionId
-    let subscriptionId = userData.subscriptionId;
-    const customerId = userData.customerId;
-
-    // Handle potential object subscriptionId
-    if (subscriptionId && typeof subscriptionId === "object") {
-      console.log("Found object subscriptionId:", subscriptionId);
-      // If it's an object with an id property, use that
-      if (subscriptionId.id) {
-        subscriptionId = subscriptionId.id;
-      } else {
-        // If it's some other object, try to stringify it
-        subscriptionId = JSON.stringify(subscriptionId);
-      }
-      console.log("Converted subscriptionId to:", subscriptionId);
+    // Get customerId from userData
+    let customerId = userData.customerId;
+    if (customerId && typeof customerId === "object") {
+      customerId = customerId.id || customerId;
     }
 
-    // 2. Check if user has a subscription
-    if (!subscriptionId) {
-      console.log("No subscriptionId found for user:", email);
+    // Get subscriptionId from userData
+    let subscriptionId = userData.subscriptionId;
+    if (subscriptionId && typeof subscriptionId === "object") {
+      subscriptionId = subscriptionId.id || subscriptionId;
+    }
+
+    console.log(
+      "Processing customerId:",
+      customerId,
+      "subscriptionId:",
+      subscriptionId
+    );
+
+    // 2. First try to get subscription by ID if we have one
+    let subscription;
+    try {
+      if (subscriptionId) {
+        subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        console.log("Retrieved stored subscription:", {
+          id: subscription.id,
+          status: subscription.status,
+        });
+      }
+    } catch (err) {
+      console.log("Stored subscription not found or error:", err.message);
+    }
+
+    // 3. If no subscription or it's canceled, look for active subscriptions
+    if (!subscription || subscription.status === "canceled") {
+      console.log("Looking for active subscriptions for customer:", customerId);
+
+      try {
+        const subscriptions = await stripe.subscriptions.list({
+          customer: customerId,
+          status: "active",
+          limit: 1,
+        });
+
+        if (subscriptions.data.length > 0) {
+          subscription = subscriptions.data[0];
+          console.log("Found new active subscription:", {
+            id: subscription.id,
+            status: subscription.status,
+          });
+
+          // Update Firestore with new subscription ID
+          await updateDoc(userDocRef, {
+            subscriptionId: subscription.id,
+          });
+          console.log("Updated Firestore with new subscription ID");
+        }
+      } catch (err) {
+        console.error("Error checking for active subscriptions:", err);
+      }
+    }
+
+    // 4. If we still don't have an active subscription
+    if (!subscription) {
+      console.log("No active subscription found for user:", email);
       return NextResponse.json(
         {
           access: false,
-          error: "No subscription found",
+          error: "No active subscription found",
           redirect: "/payment-reminder",
         },
         { status: 403 }
       );
     }
 
-    // 3. Get subscription from Stripe
-    let subscription;
-    try {
-      console.log("Attempting to fetch subscription with ID:", {
-        subscriptionId,
-        type: typeof subscriptionId,
-        customerId,
-        userEmail: email,
-      });
-
-      if (typeof subscriptionId !== "string") {
-        throw new Error(
-          `Invalid subscriptionId type: ${typeof subscriptionId}, value: ${JSON.stringify(
-            subscriptionId
-          )}`
-        );
-      }
-
-      subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      console.log("Stripe subscription data:", {
-        id: subscription.id,
-        status: subscription.status,
-        current_period_end: subscription.current_period_end,
-        customer: subscription.customer,
-      });
-    } catch (err) {
-      console.error("Error retrieving subscription from Stripe:", {
-        error: err.message,
-        type: err.type,
-        code: err.code,
-        subscriptionId,
-        customerId,
-      });
-      return NextResponse.json(
-        {
-          access: false,
-          error: `Failed to retrieve subscription: ${err.message}`,
-          redirect: "/payment-reminder",
-        },
-        { status: 404 }
-      );
-    }
-
-    // 4. Check subscription status and period
-    const now = Math.floor(Date.now() / 1000);
-    const isActive = ["active", "trialing"].includes(subscription.status);
-    const periodEnd = subscription.current_period_end;
+    // 5. Check subscription status
+    const isActive =
+      subscription.status === "active" || subscription.status === "trialing";
     const isTrial = subscription.status === "trialing";
     const isCanceled = subscription.cancel_at_period_end;
+    const now = Math.floor(Date.now() / 1000);
+    const periodEnd = subscription.current_period_end;
+    const daysRemaining = periodEnd
+      ? Math.ceil((periodEnd - now) / (24 * 60 * 60))
+      : 0;
 
-    console.log("Subscription check details:", {
+    console.log("Final subscription status check:", {
+      id: subscription.id,
       status: subscription.status,
       isActive,
       periodEnd,
-      now,
       isTrial,
       isCanceled,
-      daysRemaining: Math.ceil((periodEnd - now) / (24 * 60 * 60)),
+      daysRemaining,
     });
 
-    // 5. Determine access and return appropriate response
-    if (isActive && periodEnd > now) {
+    // 6. Return appropriate response
+    if (isActive) {
       console.log("Access granted for user:", email);
       return NextResponse.json({
         access: true,
@@ -137,49 +150,37 @@ export async function POST(req) {
           current_period_end: subscription.current_period_end,
           cancel_at_period_end: isCanceled,
           is_trial: isTrial,
-          days_remaining: Math.ceil((periodEnd - now) / (24 * 60 * 60)),
+          days_remaining: daysRemaining,
         },
       });
-    } else if (isTrial && periodEnd <= now) {
-      console.log("Trial expired for user:", email);
-      return NextResponse.json(
-        {
-          access: false,
-          error: "Trial period has expired",
-          redirect: "/payment-reminder",
-          subscription: {
-            status: subscription.status,
-            trial_end: subscription.trial_end,
-            current_period_end: subscription.current_period_end,
-          },
-        },
-        { status: 403 }
-      );
-    } else if (isCanceled) {
-      console.log("Subscription canceled for user:", email);
-      return NextResponse.json(
-        {
-          access: false,
-          error: "Subscription will end at period end",
-          redirect: "/payment-reminder",
-          subscription: {
-            status: subscription.status,
-            current_period_end: subscription.current_period_end,
-            cancel_at_period_end: true,
-          },
-        },
-        { status: 403 }
-      );
     } else {
-      console.log("Subscription not active for user:", email);
+      // Handle different non-active states
+      let error = "Subscription is not active";
+
+      if (subscription.status === "incomplete") {
+        error = "Payment incomplete. Please update payment method";
+      } else if (subscription.status === "past_due") {
+        error = "Payment past due. Please update payment method";
+      } else if (subscription.status === "canceled") {
+        error = "Subscription has been canceled";
+      } else if (subscription.status === "unpaid") {
+        error = "Subscription payment failed";
+      } else if (subscription.status === "incomplete_expired") {
+        error = "Subscription setup expired";
+      }
+
+      console.log(
+        `Subscription not active for user: ${email}. Status: ${subscription.status}`
+      );
       return NextResponse.json(
         {
           access: false,
-          error: "Subscription is not active",
+          error: error,
           redirect: "/payment-reminder",
           subscription: {
             status: subscription.status,
             current_period_end: subscription.current_period_end,
+            cancel_at_period_end: isCanceled,
           },
         },
         { status: 403 }

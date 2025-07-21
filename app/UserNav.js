@@ -47,7 +47,7 @@ const UserNav = () => {
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative z-50" ref={dropdownRef}>
       <button
         onClick={toggleDropdown}
         className="flex items-center focus:outline-none"

@@ -1,4 +1,3 @@
-
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import twilio from "twilio";
 import { NextResponse } from "next/server";
@@ -34,7 +33,7 @@ export async function POST(request) {
     console.log(
       `Appointment moved from ${oldCollectionName} to ${newCollectionName}`
     );
-    // Prepare and send SMS
+    // Prepare and send message
     let message = "";
     switch (newStatus) {
       case "rejected":
@@ -50,14 +49,30 @@ export async function POST(request) {
         message = `Dear ${appointmentData.firstName}, the status of your appointment has been updated to ${newStatus}.`;
     }
 
-    await client.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: appointmentData.phoneNumber,
-    });
+    try {
+      // First try sending via WhatsApp
+      await client.messages.create({
+        body: message,
+        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+        to: `whatsapp:${appointmentData.phoneNumber}`,
+      });
+      console.log("Message sent successfully via WhatsApp");
+    } catch (whatsappError) {
+      console.log(
+        "WhatsApp message failed, falling back to SMS:",
+        whatsappError.message
+      );
+      // If WhatsApp fails, fall back to SMS
+      await client.messages.create({
+        body: message,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: appointmentData.phoneNumber,
+      });
+      console.log("Message sent successfully via SMS");
+    }
 
     return NextResponse.json({
-      message: "Appointment status updated and SMS sent successfully",
+      message: "Appointment status updated and message sent successfully",
     });
   } catch (error) {
     console.error("Error updating appointment status:", error);

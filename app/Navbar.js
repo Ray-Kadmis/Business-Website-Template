@@ -35,7 +35,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="navbar fixed w-screen z-20 top-0 bg-white/0 backdrop-blur-lg p-2 dark:bg-white/30">
+    <nav className="navbar fixed w-screen z-50 top-0 bg-white/0 backdrop-blur-lg p-2 dark:bg-white/30">
       <div className="container mx-auto flex justify-between items-center">
         {/* Logo */}
         <div className="flex items-center">
@@ -95,13 +95,13 @@ export default function Navbar() {
         {/* Make Appointment Button and Dark Mode Switch */}
         <div className="flex items-center justify-items-center justify-between space-x-4">
           <a href="/AppointmentForm.js">
-            <button className="hidden md:block h-9 rounded-full hover:shadow-lg  text-white w-40 font-semibold dark:bg-black/40">
+            <button className="hidden md:block h-9 rounded-full hover:shadow-lg ease-in-out duration-200 hover:bg-blue-500 text-white w-40 font-semibold bg-black/40">
               Set Appointment
             </button>
           </a>
           <button
             onClick={toggleTheme}
-            className="w-8 h-8 m-0  dark:bg-white/50 rounded-full hover:shadow-lg relative"
+            className="w-8 h-8 m-0 hover:bg-blue-500 ease-in-out duration-200  bg-black/40 rounded-full hover:shadow-lg relative"
           >
             {theme === "dark" ? "🌙" : "☀️"}
           </button>
