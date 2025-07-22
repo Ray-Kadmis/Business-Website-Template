@@ -180,6 +180,15 @@ const Resform = () => {
         { merge: true }
       ); // Use merge option to update existing document
 
+      // Add to BookedSlots collection
+      const bookedSlotsRef = collection(db, "BookedSlots");
+      await setDoc(doc(bookedSlotsRef, `${formData.date}_${formData.time}`), {
+        date: formData.date,
+        time: formData.time,
+        userId: auth.currentUser.uid,
+        createdAt: new Date(),
+      });
+
       setLastSubmissionTime(Date.now());
       console.log(
         "Appointment saved successfully for user: ",
