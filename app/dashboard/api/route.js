@@ -1,4 +1,4 @@
-import { doc, setDoc, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, deleteDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import twilio from "twilio";
 import { NextResponse } from "next/server";
 import { db } from "@/app/firebaseConfig";
@@ -10,29 +10,28 @@ export async function POST(request) {
   const { id, oldStatus, newStatus, appointmentData } = await request.json();
 
   try {
-    const oldCollectionName =
-      oldStatus === "pending"
-        ? "Pending Appointments"
-        : `${
-            oldStatus.charAt(0).toUpperCase() + oldStatus.slice(1)
-          } Appointments`;
-    const newCollectionName = `${
-      newStatus.charAt(0).toUpperCase() + newStatus.slice(1)
-    } Appointments`;
-
-    // Remove from old collection
-    await deleteDoc(doc(db, oldCollectionName, id));
-
-    // Add to new status collection
-    await setDoc(doc(db, newCollectionName, id), {
-      ...appointmentData,
+    // Update status in 'appointments' collection
+    const appointmentRef = doc(db, "appointments", id);
+    await updateDoc(appointmentRef, {
       status: newStatus,
       updatedAt: new Date(),
     });
 
-    console.log(
-      `Appointment moved from ${oldCollectionName} to ${newCollectionName}`
-    );
+    // If rejected, remove from BookedSlots
+    if (newStatus === "rejected") {
+      // Find the BookedSlot document for this date and time
+      const bookedSlotsRef = collection(db, "BookedSlots");
+      const q = query(
+        bookedSlotsRef,
+        where("date", "==", appointmentData.date),
+        where("time", "==", appointmentData.time)
+      );
+      const snapshot = await getDocs(q);
+      for (const docSnap of snapshot.docs) {
+        await deleteDoc(docSnap.ref);
+      }
+    }
+
     // Prepare and send message
     let message = "";
     switch (newStatus) {

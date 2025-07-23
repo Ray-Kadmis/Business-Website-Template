@@ -9,7 +9,6 @@ import {
   where,
   getDocs,
   orderBy,
-  increment,
 } from "firebase/firestore";
 import TimeSlotDropdown from "./timeSlotGen";
 
@@ -19,7 +18,7 @@ const Resform = () => {
     lastName: "",
     email: "",
     phoneNumber: "",
-    date: "",
+    date: "",  
     time: "",
     service: "",
     age: "",
@@ -96,7 +95,7 @@ const Resform = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const pendingAppointmentsRef = collection(db, "Pending Appointments");
+      const pendingAppointmentsRef = collection(db, "appointments");
 
       // First, let's check if the index exists by making a simpler query
       try {
@@ -161,24 +160,18 @@ const Resform = () => {
       }
 
       // Reference to the user's appointment document
-      const userAppointmentRef = doc(
-        pendingAppointmentsRef,
-        auth.currentUser.uid // Use just the user ID as the document ID for pending appointments
-      );
-
-      // Set the document data with merge option to update if exists
+      // Add new appointment to 'appointments' collection with status 'pending'
+      const appointmentsRef = collection(db, "appointments");
       await setDoc(
-        userAppointmentRef,
+        doc(appointmentsRef, `${auth.currentUser.uid}_${Date.now()}`),
         {
           ...formData,
           userId: auth.currentUser.uid,
           createdAt: new Date(),
           status: "pending",
-          updatedAt: new Date(), // Add updatedAt field to track modifications
-          submissionCount: increment(1), // Track number of submissions
-        },
-        { merge: true }
-      ); // Use merge option to update existing document
+          updatedAt: new Date(),
+        }
+      );
 
       // Add to BookedSlots collection
       const bookedSlotsRef = collection(db, "BookedSlots");

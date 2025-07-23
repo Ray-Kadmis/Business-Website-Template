@@ -33,26 +33,22 @@ const UserAppointments = ({ isOpen, onClose, anchorRef }) => {
     try {
       const user = auth.currentUser;
       if (!user) return;
-      const collections = [
-        "Pending Appointments",
-        "Approved Appointments",
-        "Rejected Appointments",
-      ];
+
+      const appointmentsRef = collection(db, "appointments");
+      const q = query(appointmentsRef, where("userId", "==", user.uid));
+      const snapshot = await getDocs(q);
+      
       const allAppointments = [];
-      for (const collectionName of collections) {
-        const appointmentsRef = collection(db, collectionName);
-        const q = query(appointmentsRef, where("userId", "==", user.uid));
-        const snapshot = await getDocs(q);
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          allAppointments.push({
-            id: doc.id,
-            ...data,
-            status: collectionName.split(" ")[0].toLowerCase(),
-            createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
-          });
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        allAppointments.push({
+          id: doc.id,
+          ...data,
+          status: data.status || 'pending', // Default to pending if status is not set
+          createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
         });
-      }
+      });
+      
       allAppointments.sort((a, b) => b.createdAt - a.createdAt);
       setAppointments(allAppointments);
     } catch (error) {

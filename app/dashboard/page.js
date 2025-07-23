@@ -10,13 +10,10 @@ import {
 } from "lucide-react";
 import {
   collection,
-  getDoc,
   getDocs,
   doc,
-  query,
-  where,
-  setDoc,
   deleteDoc,
+  addDoc,
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { db, auth } from "@/app/firebaseConfig";
@@ -26,13 +23,34 @@ import { useRouter } from "next/navigation";
 import ExportAppointments from "./ReportFunction";
 import Analytics from "./Analytics";
 
+// Generate 30-minute time slots from 9am to 5pm (same as customer form)
+const generateTimeSlots = () => {
+  const slots = [];
+  for (let hour = 9; hour < 17; hour++) {
+    // Add morning slots (on the hour)
+    const hourStr = hour.toString().padStart(2, "0");
+    slots.push({
+      value: `${hourStr}:00`,
+      display: `${hour % 12 || 12}:00 ${hour >= 12 ? "PM" : "AM"}`,
+    });
+    // Add afternoon slots (half-hour)
+    slots.push({
+      value: `${hourStr}:30`,
+      display: `${hour % 12 || 12}:30 ${hour >= 12 ? "PM" : "AM"}`,
+    });
+  }
+  return slots;
+};
+
 const statusIcons = {
   pending: Calendar,
   approved: CheckCircle,
   rejected: XCircle,
   attended: UserCheck,
 };
-
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById("datePicker").setAttribute("min", today);
+ 
 const Dashboard = () => {
   const [appointments, setAppointments] = useState({
     pending: [],
@@ -44,6 +62,15 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeStatus, setActiveStatus] = useState(null);
   const router = useRouter();
+  // Blocked slots state
+  const [blockedSlots, setBlockedSlots] = useState([]);
+  const [blockDate, setBlockDate] = useState("");
+  const [blockTime, setBlockTime] = useState("");
+  const [blockWeekend, setBlockWeekend] = useState(false);
+  const [blockDayOfWeek, setBlockDayOfWeek] = useState("");
+
+  // Get today's date in YYYY-MM-DD format
+
   useEffect(() => {
     const checkPaymentStatus = async () => {
       try {
@@ -105,84 +132,93 @@ const Dashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  const fetchAppointmentsByStatus = async (status) => {
+  // Fetch blocked slots
+  useEffect(() => {
+    const fetchBlockedSlots = async () => {
+      const blockedRef = collection(db, "BlockedSlots");
+      const snapshot = await getDocs(blockedRef);
+      setBlockedSlots(
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
+    };
+    fetchBlockedSlots();
+  }, []);
+
+  // Add block
+  const handleBlockSlot = async () => {
+    if (blockWeekend) {
+      await addDoc(collection(db, "BlockedSlots"), { type: "weekend" });
+    } else if (blockDayOfWeek) {
+      await addDoc(collection(db, "BlockedSlots"), {
+        type: "dayOfWeek",
+        day: blockDayOfWeek,
+      });
+    } else if (blockDate && blockTime) {
+      await addDoc(collection(db, "BlockedSlots"), {
+        type: "dateTime",
+        date: blockDate,
+        time: blockTime,
+      });
+    } else if (blockDate) {
+      await addDoc(collection(db, "BlockedSlots"), {
+        type: "date",
+        date: blockDate,
+      });
+    }
+    setBlockWeekend(false);
+    setBlockDayOfWeek("");
+    setBlockDate("");
+    setBlockTime("");
+    // Refresh
+    const blockedRef = collection(db, "BlockedSlots");
+    const snapshot = await getDocs(blockedRef);
+    setBlockedSlots(
+      snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+    );
+  };
+
+  // Unblock
+  const handleUnblockSlot = async (id) => {
+    await deleteDoc(doc(db, "BlockedSlots", id));
+    setBlockedSlots((prev) => prev.filter((slot) => slot.id !== id));
+  };
+
+  // Replace fetchAppointmentsByStatus and fetchAllAppointments with a single fetchAllAppointments that fetches from 'appointments' and groups by status
+  const fetchAllAppointments = async () => {
     try {
-      const collectionName =
-        status === "pending"
-          ? "Pending Appointments"
-          : `${status.charAt(0).toUpperCase() + status.slice(1)} Appointments`;
-      console.log(`Fetching from collection: ${collectionName}`);
-      const appointmentsRef = collection(db, collectionName);
+      const appointmentsRef = collection(db, "appointments");
       const appointmentsSnapshot = await getDocs(appointmentsRef);
-      if (appointmentsSnapshot.empty) {
-        console.log(`No ${status} appointments found`);
-        return [];
-      }
-      return appointmentsSnapshot.docs.map((doc) => {
+      const grouped = { pending: [], approved: [], rejected: [], attended: [] };
+      appointmentsSnapshot.docs.forEach((doc) => {
         const data = doc.data();
-        // Handle createdAt field: check if it's a Firestore Timestamp and convert it
         let createdAt = data.createdAt;
         if (createdAt && typeof createdAt.toDate === "function") {
-          createdAt = createdAt.toDate(); // Firestore Timestamp to Date
+          createdAt = createdAt.toDate();
         } else if (createdAt && typeof createdAt === "string") {
-          createdAt = new Date(createdAt); // Handle string dates
+          createdAt = new Date(createdAt);
         }
-        return {
-          id: doc.id,
-          ...data,
-          status: status,
-          createdAt: createdAt || new Date(), // Default to current date if missing
-        };
+        const status = data.status || "pending";
+        if (grouped[status]) {
+          grouped[status].push({ id: doc.id, ...data, createdAt });
+        }
       });
-    } catch (error) {
-      console.error(`Error fetching ${status} appointments:`, error);
-      return [];
-    }
-  };
-  // Fetch all appointments
-  const fetchAllAppointments = async () => {
-    const statuses = ["pending", "approved", "rejected", "attended"];
-    const fetchedAppointments = {};
-    try {
-      for (const status of statuses) {
-        fetchedAppointments[status] = await fetchAppointmentsByStatus(status);
-      }
-      setAppointments(fetchedAppointments);
+      setAppointments(grouped);
     } catch (error) {
       console.error("Error fetching all appointments:", error);
     }
   };
-  const handleArchive = async (id, appointmentData) => {
-    try {
-      // First, add the appointment to the archive collection
-      const archiveRef = doc(db, "Archive", id);
-      await setDoc(archiveRef, {
-        ...appointmentData,
-        archivedAt: new Date(),
-      });
 
-      // Then delete it from the attended appointments collection
-      const attendedRef = doc(db, "Attended Appointments", id);
-      await deleteDoc(attendedRef);
-
-      // Refresh the appointments
-      await fetchAllAppointments();
-    } catch (error) {
-      console.error("Error archiving appointment:", error);
-    }
-  };
+  // Update handleStatusChange to only update the status field in the same document in 'appointments'
   const handleStatusChange = async (id, oldStatus, newStatus) => {
     try {
-      // Add confirmation dialog for attended status
       if (newStatus === "attended") {
         const isConfirmed = window.confirm(
           "Are you sure this appointment has been attended? This action will mark the appointment as completed."
         );
         if (!isConfirmed) {
-          return; // Exit if user cancels
+          return;
         }
       }
-
       const appointmentToUpdate = appointments[oldStatus].find(
         (app) => app.id === id
       );
@@ -190,38 +226,17 @@ const Dashboard = () => {
         console.error("Appointment not found");
         return;
       }
-
-      // Generate a new unique ID for approved/rejected states
-      const newId =
-        oldStatus === "pending"
-          ? `${appointmentToUpdate.userId}_${Date.now()}` // Create new ID for approved/rejected
-          : id; // Keep existing ID for other status changes
-
-      // First, add to the new status collection
-      const newCollectionName = `${
-        newStatus.charAt(0).toUpperCase() + newStatus.slice(1)
-      } Appointments`;
-      const newAppointmentRef = doc(db, newCollectionName, newId);
-      await setDoc(newAppointmentRef, {
-        ...appointmentToUpdate,
-        id: newId, // Update the ID in the document data
-        status: newStatus,
-        updatedAt: new Date(),
-        originalSubmissionDate: appointmentToUpdate.createdAt, // Keep track of original submission
+      // Call API route to update status and send Twilio message
+      await fetch("/dashboard/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          oldStatus,
+          newStatus,
+          appointmentData: appointmentToUpdate,
+        }),
       });
-
-      // Then, delete from the old status collection
-      const oldCollectionName = `${
-        oldStatus.charAt(0).toUpperCase() + oldStatus.slice(1)
-      } Appointments`;
-      const oldAppointmentRef = doc(db, oldCollectionName, id);
-      await deleteDoc(oldAppointmentRef);
-
-      console.log(
-        `Appointment ${id} status updated from ${oldStatus} to ${newStatus}`
-      );
-
-      // Refresh appointments
       await fetchAllAppointments();
     } catch (error) {
       console.error("Error updating appointment status:", error);
@@ -420,6 +435,107 @@ const Dashboard = () => {
         ))}
       </div>
 
+      {/* Blocked Slots Admin Section */}
+      <div className="mt-8 border-t pt-8 dark:border-white">
+        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 dark:text-white">
+          Block/Unblock Slots
+        </h2>
+        <div className="flex flex-col gap-4 md:flex-row md:gap-6">
+          <div className="flex flex-col gap-2 w-full md:w-1/2">
+            <label className="flex items-center gap-2 dark:text-white">
+              <input
+                type="checkbox"
+                checked={blockWeekend}
+                onChange={() => setBlockWeekend((v) => !v)}
+                className="rounded dark:bg-gray-700"
+              />
+              Block all weekends
+            </label>
+            <label className="flex items-center gap-2 dark:text-white">
+              Block specific day of week:
+              <select
+                value={blockDayOfWeek}
+                onChange={(e) => setBlockDayOfWeek(e.target.value)}
+                className="rounded dark:bg-gray-700"
+              >
+                <option value="">Select day</option>
+                <option value="sunday">Sunday</option>
+                <option value="monday">Monday</option>
+                <option value="tuesday">Tuesday</option>
+                <option value="wednesday">Wednesday</option>
+                <option value="thursday">Thursday</option>
+                <option value="friday">Friday</option>
+                <option value="saturday">Saturday</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-col gap-2 w-full md:w-1/2">
+            <label className="flex items-center gap-2 dark:text-white">
+              Block specific date:
+              <input
+                type="date"
+                id="datePicker"
+                value={blockDate}
+                onChange={(e) => setBlockDate(e.target.value)}
+                className="rounded dark:bg-gray-700"
+              />
+            </label>
+            <label className="flex items-center gap-2 dark:text-white">
+              Block specific time on selected date:
+              <select
+                value={blockTime}
+                onChange={(e) => setBlockTime(e.target.value)}
+                className="rounded dark:bg-gray-700"
+              >
+                <option value="">Select time slot</option>
+                {generateTimeSlots().map((slot) => (
+                  <option key={slot.value} value={slot.value}>
+                    {slot.display}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="bg-blue-500 text-white w-max px-4 py-2 rounded dark:bg-blue-600"
+              onClick={handleBlockSlot}
+            >
+              Block
+            </button>
+          </div>
+        </div>
+        <div className="mt-4">
+          <h3 className="font-bold mb-2 dark:text-white">
+            Currently Blocked Slots:
+          </h3>
+          <ul className="list-disc pl-4">
+            {blockedSlots.map((slot) => (
+              <li
+                key={slot.id}
+                className="mb-1 flex items-center gap-2 dark:text-white"
+              >
+                {slot.type === "weekend" && <span>All weekends</span>}
+                {slot.type === "dayOfWeek" && (
+                  <span>
+                    Every {slot.day.charAt(0).toUpperCase() + slot.day.slice(1)}
+                  </span>
+                )}
+                {slot.type === "date" && <span>Date: {slot.date}</span>}
+                {slot.type === "dateTime" && (
+                  <span>
+                    Date: {slot.date}, Time: {slot.time}
+                  </span>
+                )}
+                <button
+                  className="ml-2 px-2 py-1 bg-red-500 text-white rounded dark:bg-red-600"
+                  onClick={() => handleUnblockSlot(slot.id)}
+                >
+                  Unblock
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
       {/* Analytics Section */}
       <div className="mt-8 border-t pt-8">
         <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">

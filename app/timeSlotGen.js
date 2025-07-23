@@ -24,21 +24,51 @@ const generateTimeSlots = () => {
 const TimeSlotDropdown = ({ formData, setFormData }) => {
   const timeSlots = generateTimeSlots();
   const [bookedTimes, setBookedTimes] = useState([]);
+  const [blockedSlots, setBlockedSlots] = useState([]);
 
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (!formData.date) {
         setBookedTimes([]);
+        setBlockedSlots([]);
         return;
       }
+      // Fetch booked slots
       const bookedSlotsRef = collection(db, "BookedSlots");
       const q = query(bookedSlotsRef, where("date", "==", formData.date));
       const snapshot = await getDocs(q);
       const times = snapshot.docs.map((doc) => doc.data().time);
       setBookedTimes(times);
+
+      // Fetch blocked slots
+      const blockedRef = collection(db, "BlockedSlots");
+      const blockedSnap = await getDocs(blockedRef);
+      setBlockedSlots(blockedSnap.docs.map((doc) => doc.data()));
     };
     fetchBookedSlots();
   }, [formData.date]);
+
+  // Helper to check if a slot is blocked
+  const isSlotBlocked = (date, time) => {
+    // Block all weekends
+    const dayOfWeek = new Date(date).getDay(); // 0=Sun, 6=Sat
+    if (blockedSlots.some((slot) => slot.type === "weekend") && (dayOfWeek === 0 || dayOfWeek === 6)) {
+      return true;
+    }
+    // Block specific day of week
+    if (blockedSlots.some((slot) => slot.type === "dayOfWeek" && slot.day && slot.day.toLowerCase() === ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dayOfWeek])) {
+      return true;
+    }
+    // Block specific date
+    if (blockedSlots.some((slot) => slot.type === "date" && slot.date === date)) {
+      return true;
+    }
+    // Block specific time on date
+    if (blockedSlots.some((slot) => slot.type === "dateTime" && slot.date === date && slot.time === time)) {
+      return true;
+    }
+    return false;
+  };
 
   const handleTimeChange = (event) => {
     setFormData((prev) => ({
@@ -58,10 +88,11 @@ const TimeSlotDropdown = ({ formData, setFormData }) => {
         <option
           key={slot.value}
           value={slot.value}
-          disabled={bookedTimes.includes(slot.value)}
+          disabled={bookedTimes.includes(slot.value) || isSlotBlocked(formData.date, slot.value)}
         >
           {slot.display}
           {bookedTimes.includes(slot.value) ? " (Booked)" : ""}
+          {isSlotBlocked(formData.date, slot.value) ? " (Blocked)" : ""}
         </option>
       ))}
     </select>

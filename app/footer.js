@@ -89,7 +89,7 @@ const footer = () => {
           </a>
         </div>
         <p className="fText pb-2 w-full text-center mt-8">
-          © 2024 Rehan Zaheer. All rights reserved.
+          © 2025 Ray Kadmis. All rights reserved.
         </p>
       </div>
     </div>
