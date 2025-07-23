@@ -20,7 +20,7 @@
     "axios": "^1.7.7",
     "components": "^0.1.0",
     "date-fns": "^4.1.0",
-    "firebase": "^10.13.2",
+    "firebase": "^12.0.0",
     "lucide-react": "^0.441.0",
     "micro": "^10.0.1",
     "next": "^15.2.4",
