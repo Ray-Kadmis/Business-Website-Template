@@ -133,29 +133,6 @@ npx stripe listen --forward-to localhost:3000/dashboard/api/stripe/webhook
 
 Note on deployment: Because this project includes server routes (`app/dashboard/api/...`), a pure static export will not include them. For full functionality, deploy on a platform that supports Next.js server routes (e.g., Vercel) or set up Firebase Hosting with Cloud Functions/Cloud Run to serve the Next.js server. The included `deploy` script publishes the static site to Firebase Hosting (`firebase.json` points to `public/`).
 
-## Adding Images and GIFs to this README
-You have two simple options:
-
-1) Local assets in `public/`:
-- Save images or GIFs to `public/` (or a subfolder like `public/readme/`).
-- Reference them with a leading slash:
-```markdown
-![Dashboard](./public/readme/dashboard.png)
-![Flow](./public/readme/booking.gif)
-```
-GitHub renders images from the repo, so this works well.
-
-2) Remote URLs (CDN/GitHub):
-- Upload to your issue/PR or use GitHub’s raw file URL.
-```markdown
-![Demo](https://raw.githubusercontent.com/<user>/<repo>/<branch>/public/readme/demo.gif)
-```
-
-Tips:
-- Keep images small and optimized.
-- Prefer `.gif` for short demos, `.mp4` embedded via HTML for longer clips, or use a link to a video.
-- Consider a `readme/` subfolder under `public/` to keep things organized.
-
 ## Testing Twilio (WhatsApp + SMS)
 - For WhatsApp, enable the Twilio WhatsApp sandbox and use numbers in the format `whatsapp:+<E164>`.
 - The code first attempts WhatsApp and falls back to SMS if it fails.
