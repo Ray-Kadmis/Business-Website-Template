@@ -23,7 +23,7 @@
     "firebase": "^10.13.2",
     "lucide-react": "^0.441.0",
     "micro": "^10.0.1",
-    "next": "^15.2.4",
+    "next": "^15.4.8",
     "raw-body": "^3.0.0",
     "react": "^19.0.0",
     "react-calendar": "^5.1.0",
